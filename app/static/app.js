@@ -133,7 +133,9 @@ function renderLive(live) {
   }
 
   const loading = !!live.loading;
-  $("#loading").classList.toggle("gone", !loading);
+  const calibrating = !!live.calibrating;
+  $("#loading").textContent = calibrating ? "Calibrando ruido de fondo… no toques las cuerdas" : "Cargando sonido…";
+  $("#loading").classList.toggle("gone", !loading && !calibrating);
   $("#engine-loading").textContent = loading ? "cargando…" : "";
 
   const synth = live.synth || [];
@@ -517,6 +519,7 @@ function setup() {
     const engine = currentEngine();
     if (engine && e.target.value) setValues({ [engine.setting]: e.target.value });
   };
+  $("#calibrate").onclick = () => send({ type: "calibrate" });
   $("#rescan").onclick = () => send({ type: "library.rescan" });
 
   $("#preset-search").addEventListener("input", renderPresets);

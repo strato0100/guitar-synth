@@ -41,7 +41,55 @@ def db(rms):
 
 
 def rms(x):
-    return float(np.sqrt(np.mean(x * x)))
+    # np.dot es una sola llamada sin copias; np.mean(x * x) cuesta varias veces más
+    return math.sqrt(float(np.dot(x, x)) / len(x)) if len(x) else 0.0
+
+
+class AudioRing:
+    """
+    Búfer circular entre el callback de JACK (productor) y el hilo de análisis
+    (consumidor). Escribir cuesta una copia de memoria y nada más: sin colas,
+    sin bloqueos y sin avisar al otro hilo, porque el callback de JACK se
+    ejecuta cientos de veces por segundo y cada microsegundo cuenta.
+    """
+
+    def __init__(self, size=1 << 17):
+        self.size = size
+        self.data = np.zeros(size, dtype=np.float32)
+        self.written = 0
+        self.consumed = 0
+        self.overruns = 0       # veces que el análisis llegó tarde y se perdió audio
+
+    def write(self, block):
+        n = len(block)
+        start = self.written % self.size
+        end = start + n
+        if end <= self.size:
+            self.data[start:end] = block
+        else:
+            first = self.size - start
+            self.data[start:] = block[:first]
+            self.data[:n - first] = block[first:]
+        self.written += n
+
+    def available(self):
+        return self.written - self.consumed
+
+    def take(self):
+        """Devuelve todo el audio pendiente (copia) y lo marca como leído."""
+        written = self.written
+        if written - self.consumed > self.size // 2:
+            self.overruns += 1
+            self.consumed = written - self.size // 4    # quedarse con lo más reciente
+        start = self.consumed % self.size
+        count = written - self.consumed
+        end = start + count
+        if end <= self.size:
+            out = self.data[start:end].copy()
+        else:
+            out = np.concatenate((self.data[start:], self.data[:end - self.size]))
+        self.consumed = written
+        return out
 
 
 class Decimator:

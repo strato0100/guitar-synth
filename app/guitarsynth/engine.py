@@ -18,7 +18,6 @@ cambios mediante banderas.
 
 import logging
 import os
-import queue
 import sys
 import threading
 import time
@@ -28,7 +27,7 @@ import jack
 import numpy as np
 
 from .backends import BACKENDS, DEFAULT_ENGINE, scan_library
-from .dsp import Decimator, note_name
+from .dsp import AudioRing, Decimator, db, hop_size, note_name, rms
 from .mono import MonoTracker
 from .poly import PolyTracker
 from .router import OutputRouter
@@ -47,6 +46,8 @@ class Engine:
         self.sound_dirs = list(sound_dirs)
         self.synth_gain = synth_gain
         self.effects = effects
+        self._calibration = None    # estado mientras se mide el ruido de fondo
+        self.noise_profile = {}     # perfil de ruido para el modo Acordes
         self.xruns = 0              # ciclos de audio perdidos por JACK desde el arranque
         self.worst_xrun_ms = 0.0
         self._xrun_times = deque(maxlen=5000)
@@ -58,7 +59,7 @@ class Engine:
         self.settings_rev = 0       # sube cuando la app corrige ajustes por su cuenta
         self.notice = {"id": 0, "text": "", "error": False}
 
-        self.audio_queue = queue.Queue(maxsize=1024)
+        self.ring = AudioRing()
         self.midi_pending = deque()
         self.running = threading.Event()
         self.jack_died = threading.Event()
@@ -88,6 +89,7 @@ class Engine:
         self.samplerate = self.client.samplerate
         self.blocksize = self.client.blocksize
         self.decimator = Decimator(self.samplerate)
+        self._load_noise_profile()
 
         self.client.set_process_callback(self._process)
         self.client.set_shutdown_callback(self._shutdown)
@@ -137,10 +139,7 @@ class Engine:
     # --- callback de JACK (tiempo real) --------------------------------
 
     def _process(self, frames):
-        try:
-            self.audio_queue.put_nowait(self.inport.get_array().copy())
-        except queue.Full:
-            pass
+        self.ring.write(self.inport.get_array())
         self.midi_out.clear_buffer()
         while self.midi_pending:
             try:
@@ -369,6 +368,62 @@ class Engine:
         else:
             self._all_notes_off()
             self.tracker = wanted(self.decimator.samplerate, settings)
+            if wanted is PolyTracker:
+                self.tracker.noise = dict(self.noise_profile)
+
+    # --- calibración del ruido de fondo --------------------------------
+
+    CALIBRATION_SECONDS = 3.0
+    CALIBRATION_MAX_DB = -30.0      # por encima de esto es que se está tocando
+
+    def start_calibration(self):
+        """Mide el ruido de fondo durante unos segundos (sin tocar) y ajusta la puerta."""
+        if self._calibration is not None:
+            return
+        self._reset_request = True
+        self._calibration = {"chunks": [], "have": 0,
+                             "need": int(self.CALIBRATION_SECONDS * self.decimator.samplerate)}
+        self._announce(f"Calibrando el ruido de fondo: no toques durante "
+                       f"{self.CALIBRATION_SECONDS:.0f} s")
+
+    def _finish_calibration(self, settings):
+        samples = np.concatenate(self._calibration["chunks"])
+        self._calibration = None
+        level = db(rms(samples))
+        if level > self.CALIBRATION_MAX_DB:
+            self._announce(f"Calibración cancelada: hay señal fuerte ({level:.0f} dBFS). "
+                           "Apaga las cuerdas con la mano y repite.", True)
+            return
+        gate = int(max(-70, min(-25, round(level + 8))))
+        self.store.update({"gate_db": gate})
+        self.settings_rev += 1
+        self._settings_request = True
+
+        probe = PolyTracker(self.decimator.samplerate, settings)
+        probe.calibrate_noise(samples)
+        self.noise_profile = dict(probe.noise)
+        if isinstance(self.tracker, PolyTracker):
+            self.tracker.noise = dict(self.noise_profile)
+        self._save_noise_profile()
+        self._announce(f"Ruido de fondo {level:.0f} dBFS: puerta ajustada a {gate} dBFS")
+
+    def _noise_path(self):
+        return os.path.join(self.store.data_dir, "noise_profile.npz")
+
+    def _save_noise_profile(self):
+        try:
+            np.savez(self._noise_path(), samplerate=self.decimator.samplerate, **self.noise_profile)
+        except OSError as exc:
+            log.warning("No se pudo guardar el perfil de ruido: %s", exc)
+
+    def _load_noise_profile(self):
+        """Recupera el perfil guardado si se midió con la misma frecuencia de muestreo."""
+        try:
+            with np.load(self._noise_path()) as data:
+                if float(data["samplerate"]) == self.decimator.samplerate:
+                    self.noise_profile = {k: data[k] for k in data.files if k != "samplerate"}
+        except (OSError, ValueError, KeyError):
+            self.noise_profile = {}
 
     def _all_notes_off(self):
         for out in self.sounding.values():
@@ -377,17 +432,15 @@ class Engine:
 
     def _worker(self):
         settings = self.store.snapshot()
+        # Se procesa de a un paso del análisis (~5.3 ms) y no de a un ciclo de JACK:
+        # con 96 kHz/128 los ciclos son cada 1.3 ms y el coste fijo de numpy por
+        # llamada superaba al del propio análisis.
+        chunk = hop_size(self.decimator.samplerate) * (1 << self.decimator.stages)
+        poll = chunk / self.samplerate / 2
         while self.running.is_set():
-            try:
-                blocks = [self.audio_queue.get(timeout=0.2)]
-            except queue.Empty:
+            if self.ring.available() < chunk:
+                time.sleep(poll)
                 continue
-            # Vaciar la cola para no acumular retraso
-            while True:
-                try:
-                    blocks.append(self.audio_queue.get_nowait())
-                except queue.Empty:
-                    break
 
             if self._settings_request:
                 # Bajar la bandera antes de leer: un cambio posterior la vuelve a subir
@@ -399,7 +452,15 @@ class Engine:
                 self._all_notes_off()
                 self.tracker.reset()
 
-            samples = self.decimator.process(np.concatenate(blocks))
+            samples = self.decimator.process(self.ring.take())
+            if self._calibration is not None:
+                self._calibration["chunks"].append(samples)
+                self._calibration["have"] += len(samples)
+                if self._calibration["have"] >= self._calibration["need"]:
+                    self._finish_calibration(settings)
+                    settings = self.store.snapshot()
+                    self.tracker.reset()
+                continue
             events = self.tracker.process(samples)
             if events:
                 self._handle_events(events, settings)
@@ -467,4 +528,4 @@ class Engine:
             return None
 
     def live_state(self):
-        return dict(self.live, loading=self.loading)
+        return dict(self.live, loading=self.loading, calibrating=self._calibration is not None)

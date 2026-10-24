@@ -25,7 +25,7 @@ APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, APP_DIR)
 
 from guitarsynth.chords import identify_chord  # noqa: E402
-from guitarsynth.dsp import Decimator, note_name  # noqa: E402
+from guitarsynth.dsp import Decimator, db, note_name, rms  # noqa: E402
 from guitarsynth.settings import SettingsStore  # noqa: E402
 
 
@@ -61,6 +61,9 @@ def main():
     parser.add_argument("--salience", type=float)
     parser.add_argument("--poly-window", choices=["fast", "precise"])
     parser.add_argument("--poly-hold", type=int, help="ms para agrupar las notas de un acorde")
+    parser.add_argument("--noise", metavar="INICIO-FIN",
+                        help="segundos de la grabación sin tocar, para medir el ruido de fondo "
+                             "(por ejemplo 0.5-2.3): ajusta la puerta y, en modo poly, resta el ruido")
     parser.add_argument("--bend", action="store_true", help="activar seguimiento de bends")
     parser.add_argument("--data-dir", default=os.path.join(APP_DIR, "data"))
     args = parser.parse_args()
@@ -90,6 +93,19 @@ def main():
                                   ("gate_db", "onset_db", "stability", "confidence", "salience",
                                    "poly_window", "bend_enabled")))
     print(f"Pico de la grabación: {20 * np.log10(np.max(np.abs(data)) + 1e-9):.1f} dBFS\n")
+
+    if args.noise:
+        start, end = (float(v) for v in args.noise.split("-"))
+        segment = samples[int(start * sr):int(end * sr)]
+        level = db(rms(segment))
+        gate = int(max(-70, min(-25, round(level + 8))))
+        print(f"Ruido de fondo {level:.1f} dBFS -> puerta {gate} dBFS"
+              f"{'' if args.gate_db is None else ' (se usa --gate-db en su lugar)'}\n")
+        if args.gate_db is None:
+            settings["gate_db"] = gate
+            tracker.set_params(settings)
+        if settings["mode"] == "poly":
+            tracker.calibrate_noise(segment)
 
     block = 128
     active = set()

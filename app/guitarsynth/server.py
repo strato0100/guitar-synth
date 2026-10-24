@@ -7,6 +7,7 @@ Mensajes del navegador al servidor:
   {"type": "preset.save", "name": "..."}
   {"type": "preset.load", "name": "..."}
   {"type": "preset.delete", "name": "..."}
+  {"type": "calibrate"}                     medir el ruido de fondo (sin tocar)
   {"type": "library.rescan"}                buscar de nuevo archivos .sf2/.sfz
   {"type": "panic"}
 
@@ -112,6 +113,8 @@ def create_app(engine):
         elif kind == "preset.delete":
             store.delete_preset(message.get("name", ""))
             await broadcast({"type": "presets", "presets": store.list_presets()})
+        elif kind == "calibrate":
+            engine.start_calibration()
         elif kind == "library.rescan":
             await loop.run_in_executor(None, engine.rescan)
             await broadcast(dict(engine.library_info(), type="library"))

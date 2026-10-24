@@ -208,6 +208,26 @@ JOBS=3 bash app/tools/install-sfizz.sh    # más rápido, usa más RAM</code></p
   <h3>MODEP</h3>
   <p>La app detecta si MODEP está activo. Si lo está, «Guitarra» es la salida de tu pedalboard (con sus efectos). Si no, la app conecta la guitarra limpia a las dos salidas. El estado aparece arriba en la web («MODEP activo» o «Guitarra limpia»).</p>
 
+  <h3 id="calibrar">Calibrar el ruido de fondo</h3>
+  <p>Todo equipo tiene algo de zumbido (típicamente 50 o 60 Hz con captadores simples) y soplido. Si ese ruido está por encima de la <strong>puerta de ruido</strong>, el detector lo analiza sin parar y puede inventar notas con la guitarra en silencio, sobre todo en modo Acordes (el zumbido tiene armónicos que caen justo sobre notas). El valor por defecto (−60 dBFS) es muy bajo para la mayoría de equipos.</p>
+  <ol>
+    <li>Pestaña <strong>Detección</strong> → <strong>Calibrar ruido de fondo</strong>.</li>
+    <li>Durante 3 s, <strong>apaga las cuerdas con la mano</strong> y no toques. Si detecta señal fuerte (más de −30 dBFS) cancela y te avisa.</li>
+    <li>La app mide el ruido, sube la puerta unos 8 dB por encima y, en modo Acordes, guarda el espectro del ruido para restarlo. El perfil se conserva al reiniciar (en <code>app/data/noise_profile.npz</code>).</li>
+  </ol>
+  <p>Repítelo si cambias de guitarra, de cable o de sitio, o si ajustas la ganancia del Pisound.</p>
+
+  <h3 id="acordes">Cómo funciona el modo Acordes</h3>
+  <p>Una guitarra tiene un solo captador para las seis cuerdas, así que el audio es una mezcla. La app calcula el espectro, busca las notas por sus armónicos y, cuando reconoce un acorde (3 o más notas distintas), <strong>reparte las notas entre las cuerdas reales de una guitarra afinada en estándar</strong>: una nota por cuerda, prefiriendo trastes bajos y cuerdas al aire, y solo con notas que tengan un pico real en el espectro. Así un Sol abierto vuelve a ser G2 B2 D3 G3 B3 G4 (la nota aguda es casi indistinguible de un armónico de la grave, y por eso un detector sin esta regla se las dejaba).</p>
+  <ul>
+    <li>Descarta las notas que no tienen su propia fundamental en el espectro, y las que están a un semitono de otra mucho más fuerte (casi siempre son picos espurios).</li>
+    <li>Con el acorde ya sonando, una nota nueva necesita más análisis y un pico claro para aceptarse.</li>
+    <li>Todas las notas del ataque se envían a la vez (<strong>Agrupar acorde</strong>).</li>
+  </ul>
+  <div class="note warn">
+    <strong>Límites reales:</strong> con un solo captador la transcripción nunca es exacta. En un arpegio (una cuerda tras otra) las octavas de las notas que siguen sonando pueden aparecer como notas extra. Una cuerda que apenas suena puede faltar. Y pueden colarse notas falsas de menos de 0,1 s justo en el ataque; si molestan, sube <em>Estabilidad</em> en la pestaña Detección.
+  </div>
+
   <h3>Ajustar la detección</h3>
   <p>Mira el medidor de entrada: la línea amarilla es la puerta de ruido. En silencio la barra debe quedar por debajo y al tocar por encima.</p>
   <table>
@@ -218,6 +238,7 @@ JOBS=3 bash app/tools/install-sfizz.sh    # más rápido, usa más RAM</code></p
     <tr><td>Se nota demasiado retraso al empezar la nota</td><td>Baja la estabilidad (mínimo 2).</td></tr>
     <tr><td>Una nota repetida no vuelve a sonar</td><td>Baja <strong>detección de púa</strong>.</td></tr>
     <tr><td>Una nota se redispara sola mientras suena</td><td>Sube <strong>detección de púa</strong>.</td></tr>
+    <tr><td>Aparecen notas con la guitarra en silencio, sobre todo en modo Acordes</td><td>Pulsa <strong>Calibrar ruido de fondo</strong> (ver <a href="#calibrar">Calibrar el ruido de fondo</a>).</td></tr>
     <tr><td>Acordes con notas de más</td><td>Sube la <strong>sensibilidad de acordes</strong>.</td></tr>
     <tr><td>Acordes con notas que faltan</td><td>Baja la sensibilidad o usa la ventana <strong>Precisa</strong>.</td></tr>
     <tr><td>Las notas del acorde suenan una tras otra y no a la vez</td><td>Sube <strong>Agrupar acorde</strong> (por defecto 80 ms): espera ese tiempo y emite todas las notas juntas. Más valor = acorde más compacto pero con más retraso.</td></tr>
@@ -261,6 +282,7 @@ python3 app/tools/analyze.py notas.wav --stability 4 --gate-db -55 --bend</code>
     <tr><td><code>--salience</code></td><td>Fuerza mínima de cada nota (modo poly).</td></tr>
     <tr><td><code>--poly-window</code></td><td><code>fast</code> o <code>precise</code>.</td></tr>
     <tr><td><code>--poly-hold</code></td><td>Milisegundos para agrupar las notas de un acorde (por defecto 80).</td></tr>
+    <tr><td><code>--noise INICIO-FIN</code></td><td>Segundos de la grabación sin tocar (por ejemplo <code>0.5-2.3</code>) para medir el ruido de fondo, ajustar la puerta y, en modo poly, restar el ruido. Equivale al botón «Calibrar ruido de fondo».</td></tr>
     <tr><td><code>--bend</code></td><td>Activa el seguimiento de bends.</td></tr>
   </table>
   <p><strong>Flujo recomendado:</strong> graba tocando una escala lenta, una melodía rápida y varios acordes; analiza con distintos valores hasta que la lista de notas coincida con lo que tocaste; cuando lo tengas, introduce esos valores en la pestaña Detección de la web.</p>
@@ -446,6 +468,16 @@ python3 scripts/chord-detection.py --debug</code></pre>
     <tr>
       <td>La nota salta entre octavas</td>
       <td>Sube <code>--smoothing</code> en <code>note-detection.py</code> y toca con un ataque más suave.</td>
+    </tr>
+    <tr>
+      <td>Ruido o cortes («mal contacto») al sonar el synth; aviso amarillo «JACK trabaja a 96 kHz con buffer 128»</td>
+      <td>
+        JACK va demasiado justo para la Pi: con 96 kHz y buffer 128 hay un ciclo de audio cada 1,3 ms, y la app, FluidSynth y MODEP compiten por ese margen. Pasa a <strong>48 kHz con buffer 256</strong> (5,3 ms por ciclo, 4 veces menos ciclos). En Patchbox OS JACK se configura en <code>/etc/jackdrc</code>:
+<pre><code>sudo cp /etc/jackdrc /etc/jackdrc.bak
+sudo sed -i 's/-r 96000 -p 128/-r 48000 -p 256/' /etc/jackdrc
+sudo reboot</code></pre>
+        Para volver atrás: <code>sudo cp /etc/jackdrc.bak /etc/jackdrc</code> y reiniciar. Cambiar JACK afecta también a MODEP. Si además <code>vcgencmd measure_temp</code> marca más de 70 °C o <code>vcgencmd get_throttled</code> no es <code>0x0</code>, la Pi se está calentando: pon disipador o ventilador. Usa <code>bash app/tools/diagnose.sh</code> para ver todo junto.
+      </td>
     </tr>
     <tr>
       <td>Error <code>ModuleNotFoundError</code></td>

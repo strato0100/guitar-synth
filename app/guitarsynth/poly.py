@@ -33,7 +33,13 @@ MAX_HARMONICS = 16
 HARMONIC_TOL_CENTS = 35
 COMPRESSION = 0.5           # comprime amplitudes para que las notas débiles cuenten
 PEAK_DB = 40.0              # ignorar picos 40 dB por debajo del más fuerte
-HISTORY = 6                 # análisis recordados por nota
+HISTORY = 14                # análisis recordados por nota (más que el máximo de 'stability' + margen)
+LATE_EXTRA = 2              # análisis extra para aceptar una nota nueva con el acorde ya sonando
+ESTABLISHED_NOTES = 3       # con tantas notas activas se considera que el acorde ya está establecido
+LATE_EVIDENCE = 0.25        # pico mínimo de una nota nueva con el acorde ya sonando
+MIN_FUNDAMENTAL = 0.12      # una nota debe tener su propia fundamental como pico (no sólo armónicos)
+MIN_FUNDAMENTAL_BASS = 0.05 # ... algo menos para los graves, donde la fundamental suele ser débil
+BASS_LIMIT = 45             # A2: por debajo se aplica el umbral de graves
 OFF_MISSES = 3              # análisis seguidos sin la nota para apagarla
 EXPLAINED = 0.5             # fundamental ya explicada por armónicos de otra nota
 OVERTONE_PENALTY = 2.0      # evidencia extra para notas que coinciden con un armónico
@@ -43,6 +49,18 @@ GATE_HYSTERESIS_DB = 6.0
 
 # Duración de la ventana de análisis
 WINDOWS = {"fast": 0.17, "precise": 0.34}
+
+# Afinación estándar (número MIDI de las cuerdas al aire, de la 6ª a la 1ª)
+TUNING = (40, 45, 50, 55, 59, 64)
+MAX_FRET = 12
+VOICING_MIN_PITCH_CLASSES = 3   # sólo se reconstruye la digitación si hay un acorde
+VOICING_EVIDENCE = 0.22         # pico mínimo (relativo al mayor) para dar una nota por tocada
+FRET_COST = 0.03                # preferencia por trastes bajos y cuerdas al aire
+BASE_BONUS = 0.4                # prioridad de las notas que el estimador ya había confirmado
+PEAK_TOL_CENTS = 40
+CLUSTER_RATIO = 2.0             # una nota a un semitono de otra 2 veces más fuerte se descarta
+
+NOISE_FACTOR = 1.3          # cuánto del espectro de ruido medido se resta (1 = exacto)
 
 
 class PolyTracker:
@@ -56,6 +74,7 @@ class PolyTracker:
         self.freqs_axis = np.fft.rfftfreq(self.fft_size, 1.0 / samplerate)
         self.bin_hz = samplerate / self.fft_size
         self._windows = {}
+        self.noise = {}             # perfil de ruido por ventana: nombre -> magnitudes
         self._pending = np.empty(0, dtype=np.float32)
         self.onsets = OnsetDetector(self.hop / samplerate)
         self.set_params(params)
@@ -81,6 +100,30 @@ class PolyTracker:
         self.release_count = 0
         self.onsets.reset()
         self.display = {"notes": [], "chord": None, "level_db": -180.0}
+
+    def _frame_length(self, name):
+        length = next_pow2(self.samplerate * WINDOWS.get(name, WINDOWS["fast"]))
+        return min(length, self.fft_size)
+
+    def calibrate_noise(self, samples):
+        """
+        Mide el espectro medio del ruido de fondo (zumbido, soplido) a partir de
+        audio sin tocar, para restarlo después. Devuelve el nivel medido en dBFS.
+        """
+        profile = {}
+        for name in WINDOWS:
+            length = self._frame_length(name)
+            window = self._window(length)
+            step = max(1, length // 2)
+            spectra = [np.abs(np.fft.rfft(samples[i:i + length] * window, self.fft_size))
+                       for i in range(0, len(samples) - length + 1, step)]
+            if spectra:
+                profile[name] = np.mean(spectra, axis=0)
+        self.noise = profile
+        return db(rms(samples)) if len(samples) else -180.0
+
+    def clear_noise(self):
+        self.noise = {}
 
     def _window(self, length):
         if length not in self._windows:
@@ -145,8 +188,10 @@ class PolyTracker:
             hist.append(n in detected)
 
             if n not in self.active:
-                recent = list(hist)[-self.stability:]
-                if len(recent) == self.stability and all(recent):
+                # Con el acorde ya sonando, una nota nueva suele ser un pico espurio
+                needed = self.stability + (LATE_EXTRA if len(self.active) >= ESTABLISHED_NOTES else 0)
+                recent = list(hist)[-needed:]
+                if len(recent) == needed and all(recent):
                     if self.hold_hops <= 0:
                         self.active.add(n)
                         events.append(("on", n))
@@ -175,13 +220,90 @@ class PolyTracker:
     # ------------------------------------------------------------------
 
     def _estimate(self):
-        length = next_pow2(self.samplerate * WINDOWS.get(self.window_name, WINDOWS["fast"]))
-        length = min(length, self.fft_size)
+        length = self._frame_length(self.window_name)
         frame = self.buffer[-length:] * self._window(length)
         # Relleno con ceros hasta fft_size: misma rejilla de frecuencias
         spectrum = np.abs(np.fft.rfft(frame, self.fft_size))
+        noise = self.noise.get(self.window_name)
+        if noise is not None:
+            spectrum = np.maximum(spectrum - NOISE_FACTOR * noise, 0.0)
         freqs, amps = self._find_peaks(spectrum)
-        return self._estimate_notes(freqs, amps)
+        notes = self._estimate_notes(freqs, amps)
+        if len(freqs) == 0:
+            return notes
+        evidence = self._evidence_function(freqs, amps)
+        # Una nota deducida sólo de sus armónicos (sin fundamental) no es de guitarra
+        notes = {n for n in notes
+                 if evidence(n) >= (MIN_FUNDAMENTAL_BASS if n < BASS_LIMIT else MIN_FUNDAMENTAL)}
+        notes = self._complete_voicing(notes, evidence)
+        notes = self._drop_clusters(notes, evidence)
+        if len(self.active) >= ESTABLISHED_NOTES:
+            # Con el acorde ya sonando, una nota nueva debe tener un pico claramente fuerte
+            notes = {n for n in notes if n in self.active or evidence(n) >= LATE_EVIDENCE}
+        return notes
+
+    def _evidence_function(self, freqs, amps):
+        """midi -> fuerza del pico a esa frecuencia, relativa al pico más fuerte (0..1)."""
+        in_range = (freqs >= FMIN) & (freqs <= FMAX)
+        top = float(amps[in_range].max()) if in_range.any() else 0.0
+        a4 = self.a4
+
+        def evidence(midi):
+            if top <= 0:
+                return 0.0
+            target = a4 * 2 ** ((midi - 69) / 12)
+            close = np.abs(1200 * np.log2(freqs / target)) <= PEAK_TOL_CENTS
+            return float(amps[close].max() / top) if close.any() else 0.0
+
+        return evidence
+
+    @staticmethod
+    def _drop_clusters(notes, evidence):
+        """
+        Quita notas a un semitono de otra mucho más fuerte: en una guitarra son
+        casi siempre picos espurios (intermodulación, ruido) y no notas del acorde.
+        """
+        strength = {n: evidence(n) for n in notes}
+        return {n for n in notes
+                if not any(abs(m - n) == 1 and strength[m] >= CLUSTER_RATIO * strength[n]
+                           for m in notes)}
+
+    def _complete_voicing(self, notes, evidence):
+        """
+        Una guitarra toca una sola nota por cuerda y está afinada de forma
+        conocida. Con un acorde, la octava de una nota grave se confunde con
+        sus propios armónicos (el 2º armónico de G2 es casi tan fuerte como G3
+        tocada), así que se asignan las notas a cuerdas reales: para cada
+        cuerda se elige la nota con pico claro en el espectro, con trastes
+        bajos, y de las clases de nota que ya se detectaron. Así un Sol abierto
+        recupera G2 B2 D3 G3 B3 G4 y no sólo la nota grave y la tercera.
+        """
+        classes = {n % 12 for n in notes}
+        if len(classes) < VOICING_MIN_PITCH_CLASSES:
+            return notes
+
+        options = []        # (puntuación, cuerda, nota, traste)
+        cache = {}
+        for string, open_note in enumerate(TUNING):
+            for fret in range(MAX_FRET + 1):
+                midi = open_note + fret
+                if midi % 12 not in classes:
+                    continue
+                if midi not in cache:
+                    cache[midi] = evidence(midi)
+                if cache[midi] >= VOICING_EVIDENCE:
+                    bonus = BASE_BONUS if midi in notes else 0.0
+                    options.append((cache[midi] + bonus - FRET_COST * fret, string, midi, fret))
+
+        chosen, used_strings, used_notes = set(), set(), set()
+        for score, string, midi, fret in sorted(options, reverse=True):
+            if string in used_strings or midi in used_notes:
+                continue
+            chosen.add(midi)
+            used_strings.add(string)
+            used_notes.add(midi)
+        # Lo que el estimador ya había detectado nunca se pierde
+        return chosen | set(notes)
 
     def _find_peaks(self, spectrum):
         """Picos espectrales con frecuencia y amplitud interpoladas."""
