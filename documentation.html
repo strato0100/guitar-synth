@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guitar Synth · Documentación de scripts</title>
+<style>
+  :root {
+    --bg: #111418;
+    --panel: #1c2128;
+    --fg: #e8e8e8;
+    --dim: #9aa3ad;
+    --accent: #3ddc84;
+    --blue: #4ea1ff;
+    --yellow: #f5c542;
+    --red: #ff5c5c;
+    --border: #2d343d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "DejaVu Sans", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    padding: 2.5rem 1.5rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0 0 .3rem; font-size: 2rem; }
+  header p { margin: 0; color: var(--dim); }
+  main { max-width: 920px; margin: 0 auto; padding: 1.5rem; }
+  nav {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+  nav ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h2 {
+    margin-top: 2.5rem;
+    padding-bottom: .3rem;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 { margin-top: 1.8rem; color: var(--accent); }
+  code {
+    font-family: "DejaVu Sans Mono", monospace;
+    background: var(--panel);
+    padding: .1rem .35rem;
+    border-radius: 4px;
+    font-size: .92em;
+  }
+  pre {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: .95rem;
+  }
+  th, td {
+    text-align: left;
+    padding: .55rem .7rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel); }
+  td:first-child { white-space: nowrap; }
+  .note {
+    border-left: 4px solid var(--blue);
+    background: var(--panel);
+    padding: .8rem 1rem;
+    border-radius: 0 8px 8px 0;
+    margin: 1rem 0;
+  }
+  .note.warn { border-color: var(--yellow); }
+  .note.ok { border-color: var(--accent); }
+  .badge {
+    display: inline-block;
+    font-size: .75rem;
+    padding: .1rem .5rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: bold;
+    vertical-align: middle;
+  }
+  kbd {
+    font-family: "DejaVu Sans Mono", monospace;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: .05rem .4rem;
+    background: var(--panel);
+  }
+  footer {
+    color: var(--dim);
+    text-align: center;
+    padding: 2rem;
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+<header>
+  <main style="padding:0">
+    <h1>🎸 Guitar Synth · Scripts de detección</h1>
+    <p>Cómo ejecutar los scripts de la carpeta <code>scripts/</code> en una Raspberry Pi con Pisound y Patchbox OS.</p>
+  </main>
+</header>
+
+<main>
+  <nav>
+    <strong>Contenido</strong>
+    <ul>
+      <li><a href="#requisitos">Requisitos e instalación</a></li>
+      <li><a href="#conexion">Conexión de la guitarra</a></li>
+      <li><a href="#pantalla">Mostrar la interfaz gráfica</a></li>
+      <li><a href="#test-pitch">test-pitch.py: diagnóstico por consola</a></li>
+      <li><a href="#note-detection">note-detection.py: detector de notas</a></li>
+      <li><a href="#chord-detection">chord-detection.py: detector de acordes</a></li>
+      <li><a href="#teclas">Atajos de teclado</a></li>
+      <li><a href="#problemas">Solución de problemas</a></li>
+    </ul>
+  </nav>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="requisitos">Requisitos e instalación</h2>
+  <p>Los scripts se ejecutan en la Raspberry Pi y necesitan que el servidor de audio <strong>JACK</strong> esté en marcha. En Patchbox OS arranca automáticamente con el Pisound.</p>
+
+  <table>
+    <tr><th>Dependencia</th><th>Usada por</th><th>Para qué</th></tr>
+    <tr><td><code>python3-jack-client</code></td><td>todos</td><td>Leer el audio de la entrada del Pisound vía JACK</td></tr>
+    <tr><td><code>python3-numpy</code></td><td>todos</td><td>Cálculo numérico y FFT</td></tr>
+    <tr><td><code>python3-aubio</code></td><td>test-pitch, note-detection</td><td>Detección de una frecuencia (monofónica)</td></tr>
+    <tr><td><code>python3-tk</code></td><td>note-detection, chord-detection</td><td>Interfaz gráfica (Tkinter)</td></tr>
+  </table>
+
+<pre><code>sudo apt update
+sudo apt install python3-jack-client python3-numpy python3-aubio python3-tk</code></pre>
+
+  <p>Para comprobar que JACK está en marcha y ver los puertos de captura disponibles:</p>
+<pre><code>jack_lsp | grep capture
+# system:capture_1
+# system:capture_2</code></pre>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="conexion">Conexión de la guitarra</h2>
+  <ul>
+    <li>Conecta la guitarra eléctrica a la <strong>entrada jack de 1/4"</strong> del Pisound con un cable mono.</li>
+    <li>Con un cable mono la señal llega por el canal izquierdo, que en JACK es <code>system:capture_1</code>. Todos los scripts usan este puerto por defecto.</li>
+    <li>Ajusta la ganancia con la perilla de entrada del Pisound. Mira el <strong>medidor de entrada</strong> de la interfaz: al rasguear con fuerza debería quedar en verde o amarillo, nunca en rojo (saturación).</li>
+    <li>Los scripts dan por hecho una <strong>afinación estándar</strong> (E2 A2 D3 G3 B3 E4).</li>
+  </ul>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="pantalla">Mostrar la interfaz gráfica</h2>
+  <p><code>note-detection.py</code> y <code>chord-detection.py</code> abren una ventana, así que necesitan una pantalla. Patchbox OS no trae escritorio por defecto. Estas son las opciones:</p>
+  <table>
+    <tr><th>Situación</th><th>Cómo ejecutarlo</th></tr>
+    <tr><td>Pantalla y escritorio en la Pi</td><td>Abre una terminal en el escritorio y ejecuta el script normalmente.</td></tr>
+    <tr><td>Por SSH, con una pantalla conectada a la Pi y sesión gráfica abierta</td><td><code>DISPLAY=:0 python3 scripts/note-detection.py</code></td></tr>
+    <tr><td>Por VNC</td><td>Ejecuta el script desde una terminal dentro de la sesión VNC.</td></tr>
+    <tr><td>Ver la ventana en tu PC</td><td><code>ssh -X patch@&lt;ip-de-la-pi&gt;</code> y después ejecuta el script. Puede ir algo lento.</td></tr>
+  </table>
+  <p>La ventana está pensada para <strong>800×480</strong>, la resolución de la pantalla táctil oficial de la Raspberry Pi. Con <code>--fullscreen</code> ocupa toda la pantalla.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="test-pitch">test-pitch.py <span class="badge">consola</span></h2>
+  <p>Script de diagnóstico sin interfaz gráfica. Muestra en la terminal la frecuencia, la nota y el nivel RMS de lo que tocas. Sirve para comprobar que la cadena guitarra → Pisound → JACK → Python funciona antes de usar los demás scripts.</p>
+<pre><code>python3 scripts/test-pitch.py</code></pre>
+  <p>Ejemplo de salida:</p>
+<pre><code>Frecuencia de muestreo: 48000 Hz
+Toca únicamente el Mi grave al aire.
+Mantén la cuerda sonando y pulsa Ctrl+C para salir.
+
+   82.38 Hz  E2    RMS=0.01234</code></pre>
+  <p>No tiene opciones. Termina con <kbd>Ctrl</kbd>+<kbd>C</kbd>.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="note-detection">note-detection.py <span class="badge">notas sueltas</span></h2>
+  <p>Interfaz gráfica que funciona como un afinador. Detecta <strong>una nota a la vez</strong> y muestra:</p>
+  <ul>
+    <li>La nota en grande con su octava (por ejemplo <code>E 2</code>).</li>
+    <li>La frecuencia medida y la frecuencia exacta de la nota.</li>
+    <li>Una aguja de −50 a +50 cents: <span style="color:var(--accent)">verde</span> si la desviación es de ±5 cents o menos, <span style="color:var(--yellow)">amarilla</span> hasta ±15 y <span style="color:var(--red)">roja</span> si es mayor.</li>
+    <li>Las 6 cuerdas al aire. Se ilumina la que coincide con la nota que tocas.</li>
+    <li>El medidor de nivel de entrada.</li>
+  </ul>
+
+  <h3>Ejecución recomendada</h3>
+<pre><code>python3 scripts/note-detection.py --method schmitt</code></pre>
+  <div class="note ok">En las pruebas con Pisound, <strong><code>--method schmitt</code></strong> es el modo que funciona. Úsalo siempre, aunque el valor por defecto del script sea <code>yinfft</code>.</div>
+
+  <h3>Opciones</h3>
+  <table>
+    <tr><th>Opción</th><th>Por defecto</th><th>Descripción</th></tr>
+    <tr><td><code>--method</code></td><td><code>yinfft</code></td><td>Algoritmo de aubio: <code>schmitt</code>, <code>yinfft</code>, <code>yin</code>, <code>yinfast</code>, <code>mcomb</code> o <code>fcomb</code>. <strong>Recomendado: <code>schmitt</code>.</strong></td></tr>
+    <tr><td><code>--port</code></td><td><code>system:capture_1</code></td><td>Puerto de captura de JACK. Usa <code>system:capture_2</code> si la guitarra entra por el canal derecho.</td></tr>
+    <tr><td><code>--smoothing</code></td><td><code>5</code></td><td>Número de lecturas con las que se calcula la mediana. Con más lecturas la nota es más estable, pero responde más despacio.</td></tr>
+    <tr><td><code>--gate</code></td><td><code>0.0005</code></td><td>Nivel RMS mínimo para considerar que hay señal. Súbelo si aparecen notas con ruido o en silencio.</td></tr>
+    <tr><td><code>--confidence</code></td><td><code>0.7</code></td><td>Confianza mínima (0–1) para aceptar una lectura. <em>No se aplica con <code>schmitt</code>.</em></td></tr>
+    <tr><td><code>--fullscreen</code></td><td>desactivado</td><td>Arranca en pantalla completa.</td></tr>
+    <tr><td><code>-h</code>, <code>--help</code></td><td></td><td>Muestra la ayuda.</td></tr>
+  </table>
+
+  <h3>Ejemplos</h3>
+<pre><code># Pantalla completa en la pantalla táctil
+python3 scripts/note-detection.py --method schmitt --fullscreen
+
+# Respuesta más rápida (menos suavizado)
+python3 scripts/note-detection.py --method schmitt --smoothing 3
+
+# Ignorar más ruido de fondo
+python3 scripts/note-detection.py --method schmitt --gate 0.002</code></pre>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="chord-detection">chord-detection.py <span class="badge">acordes</span></h2>
+  <p>Interfaz gráfica que detecta <strong>varias notas sonando a la vez</strong> y da el nombre del acorde. No usa aubio: analiza el espectro con una FFT y separa las notas restando los armónicos de cada una. Muestra:</p>
+  <ul>
+    <li>El nombre del acorde en grande: <strong>blanco</strong> si coincide exactamente, <span style="color:var(--yellow)"><strong>amarillo</strong></span> si es aproximado (sobra una nota) y <span style="color:var(--red)"><strong>?</strong></span> si no lo reconoce. Las inversiones se escriben con barra, por ejemplo <code>C/E</code>.</li>
+    <li>La lista de notas con su octava, por ejemplo <code>E2 B2 E3 G#3 B3 E4</code>.</li>
+    <li>Las 12 notas de la escala con las presentes iluminadas. La raíz va en <span style="color:var(--accent)">verde</span> y el resto en <span style="color:var(--blue)">azul</span>.</li>
+    <li>Un teclado de E2 a E6 que marca dónde suena cada nota.</li>
+    <li>El medidor de nivel de entrada.</li>
+  </ul>
+
+  <h3>Ejecución</h3>
+<pre><code>python3 scripts/chord-detection.py
+# La primera vez, con --debug para ver en la consola lo que detecta:
+python3 scripts/chord-detection.py --debug</code></pre>
+
+  <h3>Opciones</h3>
+  <table>
+    <tr><th>Opción</th><th>Por defecto</th><th>Descripción</th></tr>
+    <tr><td><code>--salience</code></td><td><code>0.25</code></td><td>Fuerza mínima de una nota respecto a la más fuerte (0–1). <strong>Es el ajuste principal:</strong> súbelo si aparecen notas de más y bájalo si faltan.</td></tr>
+    <tr><td><code>--peak-db</code></td><td><code>40</code></td><td>Ignora los picos del espectro que estén más de N dB por debajo del más fuerte. Súbelo (por ejemplo a <code>50</code>) si se pierden notas débiles.</td></tr>
+    <tr><td><code>--gate</code></td><td><code>0.0005</code></td><td>Nivel RMS mínimo para considerar que hay señal.</td></tr>
+    <tr><td><code>--max-notes</code></td><td><code>6</code></td><td>Máximo de notas simultáneas que se buscan.</td></tr>
+    <tr><td><code>--port</code></td><td><code>system:capture_1</code></td><td>Puerto de captura de JACK.</td></tr>
+    <tr><td><code>--debug</code></td><td>desactivado</td><td>Escribe en la consola las notas y el acorde cada vez que cambian.</td></tr>
+    <tr><td><code>--fullscreen</code></td><td>desactivado</td><td>Arranca en pantalla completa.</td></tr>
+    <tr><td><code>-h</code>, <code>--help</code></td><td></td><td>Muestra la ayuda.</td></tr>
+  </table>
+
+  <h3>Ajuste paso a paso</h3>
+  <ol>
+    <li>Arranca con <code>--debug</code> y toca un acorde conocido, por ejemplo Mi mayor al aire (E2 B2 E3 G#3 B3 E4).</li>
+    <li>Si en la consola aparecen notas que no tocas, sube <code>--salience</code> a <code>0.35</code>.</li>
+    <li>Si faltan notas, baja <code>--salience</code> a <code>0.15</code> o sube <code>--peak-db</code> a <code>50</code>.</li>
+    <li>Si en silencio aparecen notas, sube <code>--gate</code>.</li>
+  </ol>
+<pre><code>python3 scripts/chord-detection.py --debug --salience 0.35 --peak-db 50</code></pre>
+
+  <h3>Acordes que reconoce</h3>
+  <p>Para cualquier raíz: mayor, <code>m</code>, <code>5</code> (power chord), <code>7</code>, <code>m7</code>, <code>maj7</code>, <code>sus2</code>, <code>sus4</code>, <code>7sus4</code>, <code>6</code>, <code>m6</code>, <code>add9</code>, <code>madd9</code>, <code>9</code>, <code>m9</code>, <code>maj9</code>, <code>dim</code>, <code>m7b5</code>, <code>dim7</code>, <code>aug</code> y <code>mMaj7</code>. Los acordes de cuatro notas o más también se reconocen sin la quinta. Una sola nota se muestra como su nombre.</p>
+
+  <div class="note warn">
+    <strong>Limitaciones</strong>
+    <ul>
+      <li>Responde algo más lento que el detector de notas (unos 0,3 s), porque necesita una ventana de análisis larga para separar las notas graves.</li>
+      <li>Una nota que coincide exactamente con un armónico de otra más grave puede no detectarse (por ejemplo, B3 tocado junto a E2). En la mayoría de los acordes el nombre sale bien igualmente, porque esa nota suele aparecer también en otra octava.</li>
+      <li>Con distorsión fuerte aparecen muchos armónicos y la detección empeora. Funciona mejor con sonido limpio.</li>
+    </ul>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="teclas">Atajos de teclado</h2>
+  <p>Valen para <code>note-detection.py</code> y <code>chord-detection.py</code>:</p>
+  <table>
+    <tr><th>Tecla</th><th>Acción</th></tr>
+    <tr><td><kbd>F11</kbd> o <kbd>f</kbd></td><td>Activar o desactivar la pantalla completa</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Salir de la pantalla completa</td></tr>
+    <tr><td><kbd>q</kbd></td><td>Cerrar el programa</td></tr>
+  </table>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="problemas">Solución de problemas</h2>
+  <table>
+    <tr><th>Mensaje o síntoma</th><th>Causa y solución</th></tr>
+    <tr>
+      <td><code>No se pudo abrir la interfaz gráfica</code></td>
+      <td>No hay pantalla disponible. Consulta <a href="#pantalla">Mostrar la interfaz gráfica</a> y prueba con <code>DISPLAY=:0</code> o VNC.</td>
+    </tr>
+    <tr>
+      <td><code>Error de audio: ...</code> al arrancar</td>
+      <td>JACK no está en marcha o el Pisound no está configurado. Comprueba con <code>jack_lsp</code>.</td>
+    </tr>
+    <tr>
+      <td><code>No existe el puerto 'system:capture_1'</code></td>
+      <td>El mensaje incluye la lista de puertos disponibles. Elige uno con <code>--port</code>.</td>
+    </tr>
+    <tr>
+      <td>«JACK se ha detenido» en pantalla</td>
+      <td>El servidor JACK se cerró mientras el programa estaba abierto. Reinícialo y vuelve a abrir el script.</td>
+    </tr>
+    <tr>
+      <td>El medidor de entrada no se mueve</td>
+      <td>No llega señal: revisa el cable, el volumen de la guitarra, la ganancia del Pisound y el puerto (<code>capture_1</code> o <code>capture_2</code>).</td>
+    </tr>
+    <tr>
+      <td>No aparece ninguna nota aunque hay señal</td>
+      <td>En <code>note-detection.py</code> usa <code>--method schmitt</code>. En ambos scripts prueba a bajar <code>--gate</code>.</td>
+    </tr>
+    <tr>
+      <td>La nota salta entre octavas</td>
+      <td>Sube <code>--smoothing</code> en <code>note-detection.py</code> y toca con un ataque más suave.</td>
+    </tr>
+    <tr>
+      <td>Error <code>ModuleNotFoundError</code></td>
+      <td>Falta alguna dependencia. Consulta <a href="#requisitos">Requisitos e instalación</a>.</td>
+    </tr>
+  </table>
+</main>
+
+<footer>Guitar Synth · Raspberry Pi + Pisound + Patchbox OS</footer>
+</body>
+</html>
