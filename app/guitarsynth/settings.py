@@ -9,6 +9,9 @@ DEFAULTS = {
     "mode": "mono",             # mono | poly
     "output": "both",           # synth | guitar | both
     # Sonido
+    "engine": "fluidsynth",     # fluidsynth | sfizz
+    "sf2": "",                  # SoundFont elegida (ruta); vacío = la de por defecto
+    "sfz": "",                  # instrumento SFZ elegido (ruta)
     "program": 0,               # instrumento General MIDI 0..127
     "transpose": 0,             # semitonos
     "volume": 100,              # CC7
@@ -25,12 +28,16 @@ DEFAULTS = {
     "confidence": 0.75,         # confianza mínima de YIN (modo mono)
     "salience": 0.25,           # fuerza mínima de una nota (modo acordes)
     "poly_window": "fast",      # fast | precise
+    "poly_hold": 80,            # ms que se esperan para emitir el acorde junto
     "a4": 440.0,                # afinación de referencia
 }
 
 SCHEMA = {
     "mode": ("choice", ["mono", "poly"]),
     "output": ("choice", ["synth", "guitar", "both"]),
+    "engine": ("choice", ["fluidsynth", "sfizz"]),
+    "sf2": ("str", 500),
+    "sfz": ("str", 500),
     "program": ("int", 0, 127),
     "transpose": ("int", -36, 36),
     "volume": ("int", 0, 127),
@@ -46,25 +53,26 @@ SCHEMA = {
     "confidence": ("float", 0.3, 0.98),
     "salience": ("float", 0.05, 0.8),
     "poly_window": ("choice", ["fast", "precise"]),
+    "poly_hold": ("int", 0, 300),
     "a4": ("float", 415.0, 466.0),
 }
 
 DETECTION_KEYS = ["gate_db", "onset_db", "stability", "confidence",
-                  "salience", "poly_window", "a4"]
+                  "salience", "poly_window", "poly_hold", "a4"]
 
-PRESET_KEYS = ["mode", "program", "transpose", "volume", "reverb", "room",
+PRESET_KEYS = ["mode", "engine", "sf2", "sfz", "program", "transpose", "volume", "reverb", "room",
                "chorus", "velocity", "bend_enabled", "bend_range"]
 
 DEFAULT_PRESETS = {
-    "Piano": {"program": 0, "transpose": 0, "reverb": 40, "chorus": 0},
-    "Bajo eléctrico (octava abajo)": {"program": 33, "transpose": -12, "reverb": 10, "chorus": 0},
-    "Cuerdas": {"program": 48, "transpose": 0, "reverb": 70, "chorus": 20, "mode": "poly"},
-    "Órgano Hammond": {"program": 16, "transpose": 0, "reverb": 30, "chorus": 40},
-    "Saxo tenor": {"program": 66, "transpose": 0, "reverb": 40, "bend_enabled": True},
-    "Flauta": {"program": 73, "transpose": 12, "reverb": 60, "bend_enabled": True},
-    "Lead sintetizado": {"program": 81, "transpose": 0, "reverb": 30, "chorus": 30,
+    "Piano": {"engine": "fluidsynth", "program": 0, "transpose": 0, "reverb": 40, "chorus": 0},
+    "Bajo eléctrico (octava abajo)": {"engine": "fluidsynth", "program": 33, "transpose": -12, "reverb": 10, "chorus": 0},
+    "Cuerdas": {"engine": "fluidsynth", "program": 48, "transpose": 0, "reverb": 70, "chorus": 20, "mode": "poly"},
+    "Órgano Hammond": {"engine": "fluidsynth", "program": 16, "transpose": 0, "reverb": 30, "chorus": 40},
+    "Saxo tenor": {"engine": "fluidsynth", "program": 66, "transpose": 0, "reverb": 40, "bend_enabled": True},
+    "Flauta": {"engine": "fluidsynth", "program": 73, "transpose": 12, "reverb": 60, "bend_enabled": True},
+    "Lead sintetizado": {"engine": "fluidsynth", "program": 81, "transpose": 0, "reverb": 30, "chorus": 30,
                          "bend_enabled": True},
-    "Pad cálido": {"program": 89, "transpose": 0, "reverb": 90, "chorus": 50, "mode": "poly"},
+    "Pad cálido": {"engine": "fluidsynth", "program": 89, "transpose": 0, "reverb": 90, "chorus": 50, "mode": "poly"},
 }
 
 
@@ -77,6 +85,8 @@ def _coerce(key, value):
         return value
     if kind == "bool":
         return bool(value)
+    if kind == "str":
+        return str(value)[:spec[1]]
     number = int(round(float(value))) if kind == "int" else float(value)
     return min(spec[2], max(spec[1], number))
 

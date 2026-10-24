@@ -60,12 +60,13 @@ def main():
     parser.add_argument("--confidence", type=float)
     parser.add_argument("--salience", type=float)
     parser.add_argument("--poly-window", choices=["fast", "precise"])
+    parser.add_argument("--poly-hold", type=int, help="ms para agrupar las notas de un acorde")
     parser.add_argument("--bend", action="store_true", help="activar seguimiento de bends")
     parser.add_argument("--data-dir", default=os.path.join(APP_DIR, "data"))
     args = parser.parse_args()
 
     settings = SettingsStore(args.data_dir).snapshot()
-    for key in ("mode", "gate_db", "onset_db", "stability", "confidence", "salience", "poly_window"):
+    for key in ("mode", "gate_db", "onset_db", "stability", "confidence", "salience", "poly_window", "poly_hold"):
         value = getattr(args, key)
         if value is not None:
             settings[key] = value

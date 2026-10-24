@@ -12,7 +12,7 @@
   --radius: 12px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-color: var(--border) transparent; }
 
 html, body {
   margin: 0;
@@ -141,7 +141,7 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 28px; }
 .switch:checked::after { left: 23px; }
 
 /* --- pestañas --- */
-.tabs { display: flex; gap: .3rem; margin-bottom: .6rem; overflow-x: auto; }
+.tabs { display: flex; gap: .3rem; margin-bottom: .6rem; overflow-x: auto; scrollbar-width: none; }
 .tabs button { flex: 1; white-space: nowrap; background: transparent; border-color: transparent; color: var(--dim); }
 .tabs button.active { color: var(--fg); border-color: var(--border); background: var(--panel); }
 .tab-panel { display: none; }
@@ -160,6 +160,18 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 28px; }
 .instrument .num { font-size: .7rem; color: var(--dim); }
 .instrument .en { font-size: .75rem; color: var(--dim); }
 .instrument.active { border-color: var(--green); background: rgba(61, 220, 132, .12); }
+.bank-controls { display: flex; gap: .5rem; }
+select {
+  flex: 1; min-width: 0;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: .6rem .7rem; color: var(--fg); font: inherit;
+}
+.segmented button:disabled { opacity: .4; cursor: not-allowed; }
+.gone { display: none !important; }
+.loading {
+  position: fixed; left: 0; right: 0; top: 52px; z-index: 15; text-align: center;
+  background: var(--yellow); color: #1b1500; font-weight: 600; padding: .45rem;
+}
 .category-title { grid-column: 1 / -1; margin: .6rem 0 0; font-size: .85rem; color: var(--dim); }
 
 /* --- presets --- */

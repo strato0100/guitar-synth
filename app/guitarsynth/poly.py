@@ -11,6 +11,10 @@ enciende cuando aparece en `stability` análisis seguidos y se
 apaga cuando lleva varios análisis seguidos sin aparecer. Un ataque de
 púa limpia el historial para que el cambio de acorde sea rápido.
 
+Las notas de un acorde no se emiten una a una: la primera nota que se
+estabiliza abre una breve ventana (`poly_hold` ms) y todas las que se
+estabilicen dentro de ella se emiten juntas, para que el acorde suene a la vez.
+
 Eventos generados: ("on", midi), ("off", midi).
 """
 
@@ -61,8 +65,12 @@ class PolyTracker:
         self.salience = float(params["salience"])
         self.window_name = params["poly_window"]
         self.a4 = float(params["a4"])
+        hop_seconds = HOP / self.samplerate
+        self.hold_hops = round(float(params["poly_hold"]) / 1000 / hop_seconds)
 
     def reset(self):
+        self.ready = set()          # notas estables a la espera de salir juntas
+        self.flush_in = 0
         self.active = set()
         self.history = {}
         self.hop_count = 0
@@ -106,6 +114,12 @@ class PolyTracker:
                 events.append(("off", n))
             self.active.clear()
             self.history.clear()
+            self.ready.clear()
+
+        if self.flush_in > 0:
+            self.flush_in -= 1
+            if self.flush_in == 0:
+                self._flush_ready(events)
 
         self.hop_count += 1
         if self.hop_count % ANALYSIS_EVERY == 0:
@@ -129,8 +143,13 @@ class PolyTracker:
             if n not in self.active:
                 recent = list(hist)[-self.stability:]
                 if len(recent) == self.stability and all(recent):
-                    self.active.add(n)
-                    events.append(("on", n))
+                    if self.hold_hops <= 0:
+                        self.active.add(n)
+                        events.append(("on", n))
+                    elif n not in self.ready:
+                        if not self.ready:
+                            self.flush_in = self.hold_hops
+                        self.ready.add(n)
             else:
                 recent = list(hist)[-OFF_MISSES:]
                 if len(recent) == OFF_MISSES and not any(recent):
@@ -138,7 +157,16 @@ class PolyTracker:
                     events.append(("off", n))
 
             if n not in self.active and not any(hist):
+                self.ready.discard(n)
                 del self.history[n]
+
+    def _flush_ready(self, events):
+        for n in sorted(self.ready):
+            hist = self.history.get(n)
+            if hist and hist[-1]:       # sigue sonando
+                self.active.add(n)
+                events.append(("on", n))
+        self.ready.clear()
 
     # ------------------------------------------------------------------
 

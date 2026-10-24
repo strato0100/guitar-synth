@@ -67,6 +67,18 @@
 
   <!-- Instrumentos -->
   <section id="tab-instruments" class="card tab-panel active">
+    <div class="control">
+      <label>Motor de sonido <span id="engine-loading" class="value"></span></label>
+      <div id="engines" class="segmented"></div>
+      <small id="engine-hint" class="muted"></small>
+    </div>
+    <div id="bank-row" class="control bank-row">
+      <label for="sound-select">Banco de sonidos (SoundFont)</label>
+      <div class="bank-controls">
+        <select id="sound-select"></select>
+        <button id="rescan" title="Buscar archivos nuevos">↻</button>
+      </div>
+    </div>
     <input id="search" type="search" placeholder="Buscar: sax, violín, organ, pad…" autocomplete="off">
     <div id="categories" class="chips"></div>
     <div id="instruments" class="instrument-grid"></div>
@@ -127,6 +139,8 @@
       </div>
       <small class="muted">Precisa separa mejor las notas graves pero responde más lento.</small>
     </div>
+    <div class="control slider" data-key="poly_hold" data-label="Agrupar acorde (ms)" data-min="0" data-max="300" data-step="10"
+         data-help="Espera este tiempo para que todas las notas del acorde suenen a la vez. Más = acorde más compacto pero con más retraso; 0 = cada nota en cuanto se detecta."></div>
     <div class="control slider" data-key="a4" data-label="Afinación de referencia La4 (Hz)" data-min="415" data-max="466" data-step="0.5"></div>
     <button id="detection-reset">Restablecer valores de detección</button>
   </section>
@@ -135,6 +149,7 @@
 </main>
 
 <div id="toast" class="toast"></div>
+<div id="loading" class="loading gone">Cargando sonido…</div>
 <script src="/static/app.js"></script>
 </body>
 </html>

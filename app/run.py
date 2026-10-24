@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Guitar Synth: convierte la guitarra eléctrica en cualquier instrumento
-General MIDI en tiempo real (Pisound + JACK + FluidSynth) y se controla
-desde el navegador.
+Guitar Synth: convierte la guitarra eléctrica en otros instrumentos en
+tiempo real (Pisound + JACK + FluidSynth o sfizz) y se controla desde el
+navegador.
 
 Uso:
     python3 app/run.py
     python3 app/run.py --http-port 8080 --port system:capture_1
+    python3 app/run.py --sounds-dir ~/mis-sonidos
 
 Después abre http://<ip-de-la-pi>:8080 en el móvil o el PC.
 """
@@ -51,21 +52,23 @@ def local_ip():
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Guitar Synth: guitarra -> FluidSynth con control web.")
+    parser = argparse.ArgumentParser(description="Guitar Synth: guitarra -> instrumentos con control web.")
     parser.add_argument("--port", default="system:capture_1",
                         help="puerto de captura JACK de la guitarra (por defecto system:capture_1)")
     parser.add_argument("--http-port", type=int, default=8080,
                         help="puerto de la interfaz web (por defecto 8080)")
     parser.add_argument("--host", default="0.0.0.0",
                         help="dirección en la que escucha la web (por defecto todas)")
-    parser.add_argument("--soundfont", default="/usr/share/sounds/sf2/FluidR3_GM.sf2",
-                        help="SoundFont General MIDI para FluidSynth")
+    parser.add_argument("--sounds-dir", action="append", default=[],
+                        help="carpeta extra con archivos .sf2 / .sfz (se puede repetir); "
+                             "siempre se buscan también app/sounds, /usr/share/sounds/sf2 y "
+                             "/usr/share/soundfonts")
     parser.add_argument("--gain", type=float, default=0.7,
                         help="ganancia maestra de FluidSynth (por defecto 0.7)")
     parser.add_argument("--data-dir", default=os.path.join(APP_DIR, "data"),
                         help="carpeta donde se guardan ajustes y presets")
     parser.add_argument("--verbose", action="store_true",
-                        help="mostrar más mensajes (incluidos los de FluidSynth)")
+                        help="mostrar más mensajes (incluidos los del motor de sonido)")
     return parser.parse_args()
 
 
@@ -82,14 +85,16 @@ def main():
     from guitarsynth.server import create_app
     from guitarsynth.settings import SettingsStore
 
-    if not os.path.isfile(args.soundfont):
-        sys.exit(f"No existe la SoundFont {args.soundfont}")
+    sound_dirs = [os.path.join(APP_DIR, "sounds"), "/usr/share/sounds/sf2",
+                  "/usr/share/soundfonts"] + [os.path.abspath(os.path.expanduser(d))
+                                              for d in args.sounds_dir]
+    os.makedirs(sound_dirs[0], exist_ok=True)
 
     store = SettingsStore(args.data_dir)
-    engine = Engine(store, capture_port=args.port, soundfont=args.soundfont,
-                    fluid_gain=args.gain)
+    engine = Engine(store, capture_port=args.port, sound_dirs=sound_dirs,
+                    synth_gain=args.gain)
 
-    print("Arrancando motor de audio (cargar la SoundFont tarda unos segundos)...")
+    print("Arrancando motor de audio (cargar el sonido tarda unos segundos)...")
     try:
         engine.start()
     except (jack.JackError, RuntimeError) as exc:
@@ -99,13 +104,14 @@ def main():
     status = engine.status()
     print(f"Audio: {status['samplerate']} Hz, entrada {args.port}, "
           f"MODEP {'activo' if status['modep'] else 'inactivo'}")
+    print(f"Motor de sonido: {status['engine_label']} ({status['sound']})")
     print(f"Interfaz web: http://{local_ip()}:{args.http_port}  (Ctrl+C para salir)")
 
     try:
         uvicorn.run(create_app(engine), host=args.host, port=args.http_port,
                     log_level="info" if args.verbose else "warning")
     finally:
-        print("Cerrando: restaurando conexiones de JACK y deteniendo FluidSynth...")
+        print("Cerrando: restaurando conexiones de JACK y deteniendo el motor de sonido...")
         engine.stop()
 
 

@@ -155,7 +155,7 @@
     <tr><td><code>--port</code></td><td><code>system:capture_1</code></td><td>Puerto de captura JACK de la guitarra.</td></tr>
     <tr><td><code>--http-port</code></td><td><code>8080</code></td><td>Puerto de la interfaz web.</td></tr>
     <tr><td><code>--host</code></td><td><code>0.0.0.0</code></td><td>Dirección en la que escucha. Usa <code>127.0.0.1</code> para permitir solo acceso local.</td></tr>
-    <tr><td><code>--soundfont</code></td><td><code>/usr/share/sounds/sf2/FluidR3_GM.sf2</code></td><td>SoundFont General MIDI. También hay <code>TimGM6mb.sf2</code> (más ligera).</td></tr>
+    <tr><td><code>--sounds-dir</code></td><td>(ninguna extra)</td><td>Carpeta adicional con archivos <code>.sf2</code> / <code>.sfz</code>; se puede repetir. Siempre se buscan también <code>app/sounds/</code>, <code>/usr/share/sounds/sf2</code> y <code>/usr/share/soundfonts</code>.</td></tr>
     <tr><td><code>--gain</code></td><td><code>0.7</code></td><td>Ganancia maestra de FluidSynth. Bájala si el synth distorsiona.</td></tr>
     <tr><td><code>--data-dir</code></td><td><code>app/data</code></td><td>Dónde se guardan <code>settings.json</code> y <code>presets.json</code>.</td></tr>
     <tr><td><code>--verbose</code></td><td>desactivado</td><td>Muestra más mensajes, incluidos los de FluidSynth.</td></tr>
@@ -166,12 +166,29 @@
     <tr><th>Control</th><th>Qué hace</th></tr>
     <tr><td>Modo: Notas / Acordes</td><td><strong>Notas</strong>: una nota a la vez (YIN), más rápido y fiable. <strong>Acordes</strong>: varias notas a la vez (análisis espectral), con unos 150–300 ms más de retraso.</td></tr>
     <tr><td>Salida: Synth / Guitarra / Ambos</td><td>Qué llega a las salidas del Pisound. Son conexiones de JACK, sin retraso añadido.</td></tr>
-    <tr><td>Instrumento</td><td>Los 128 instrumentos GM por familias, con buscador (<em>sax</em>, <em>violín</em>, <em>pad</em>…).</td></tr>
+    <tr><td>Instrumento</td><td>Motor de sonido (FluidSynth o sfizz), banco de sonidos y lista de instrumentos con buscador. Ver <a href="#motores">Motores de sonido</a>.</td></tr>
     <tr><td>Sonido</td><td>Transposición (semitonos y octavas), volumen, velocity, reverb, tamaño de sala, chorus, seguimiento de bends y su rango.</td></tr>
     <tr><td>Presets</td><td>Guarda y carga combinaciones de instrumento, modo, transposición, efectos y bends. Vienen 8 de ejemplo.</td></tr>
     <tr><td>Detección</td><td>Puerta de ruido, estabilidad, detección de púa, confianza, sensibilidad de acordes, ventana de acordes y afinación de referencia.</td></tr>
     <tr><td>Pánico</td><td>Apaga todas las notas si alguna se queda colgada.</td></tr>
   </table>
+
+  <h3 id="motores">Motores de sonido</h3>
+  <p>En la pestaña <strong>Instrumento</strong> eliges con qué motor suena la guitarra. El cambio es en caliente: la app para el motor anterior y arranca el nuevo (unos segundos; sale un aviso amarillo de «Cargando sonido…»). Mientras tanto no suena nada. Si el nuevo no arranca, la app vuelve al anterior y lo avisa.</p>
+  <table>
+    <tr><th>Motor</th><th>Archivos</th><th>Qué ofrece</th><th>Requisito</th></tr>
+    <tr><td><strong>FluidSynth</strong></td><td><code>.sf2</code> (SoundFont)</td><td>Los 128 instrumentos General MIDI del banco elegido, con reverb y chorus.</td><td>Ya instalado en Patchbox OS.</td></tr>
+    <tr><td><strong>sfizz (SFZ)</strong></td><td><code>.sfz</code></td><td>Un archivo = un instrumento completo (piano, cuerdas, guitarra…), normalmente con muestras de más calidad.</td><td>Programa <code>sfizz_jack</code>. Si no está instalado, el botón aparece desactivado con la explicación.</td></tr>
+  </table>
+  <p><strong>Dónde poner los archivos:</strong> copia los <code>.sf2</code> y las carpetas de <code>.sfz</code> en <code>app/sounds/</code> (se crea al arrancar) o en cualquier carpeta que pases con <code>--sounds-dir</code>. Pulsa <strong>↻</strong> junto al banco para que la web los detecte sin reiniciar. Los archivos de <code>app/sounds/</code> no se suben a git.</p>
+  <div class="note warn">
+    <ul>
+      <li>La Pi 4 tiene 4 GB de RAM. Un banco o un instrumento SFZ de varios GB puede tardar mucho en cargar o no caber. Prueba con uno cada vez.</li>
+      <li>Con sfizz no hay «128 instrumentos»: el instrumento lo define el archivo SFZ, y los controles de reverb y chorus de la app no actúan (FluidSynth sí los usa). La transposición, la salida, el modo y los bends sí funcionan.</li>
+      <li>Los presets guardan el motor y el archivo de sonido. Si un archivo ya no existe al cargarlo, la app usa uno por defecto y lo avisa.</li>
+      <li>Surge XT y otros sintetizadores de plugins no están incluidos: hospedarlos sin pantalla es otro proyecto aparte.</li>
+    </ul>
+  </div>
 
   <h3>MODEP</h3>
   <p>La app detecta si MODEP está activo. Si lo está, «Guitarra» es la salida de tu pedalboard (con sus efectos). Si no, la app conecta la guitarra limpia a las dos salidas. El estado aparece arriba en la web («MODEP activo» o «Guitarra limpia»).</p>
@@ -188,6 +205,7 @@
     <tr><td>Una nota se redispara sola mientras suena</td><td>Sube <strong>detección de púa</strong>.</td></tr>
     <tr><td>Acordes con notas de más</td><td>Sube la <strong>sensibilidad de acordes</strong>.</td></tr>
     <tr><td>Acordes con notas que faltan</td><td>Baja la sensibilidad o usa la ventana <strong>Precisa</strong>.</td></tr>
+    <tr><td>Las notas del acorde suenan una tras otra y no a la vez</td><td>Sube <strong>Agrupar acorde</strong> (por defecto 80 ms): espera ese tiempo y emite todas las notas juntas. Más valor = acorde más compacto pero con más retraso.</td></tr>
   </table>
 
   <div class="note warn">
@@ -223,6 +241,7 @@ python3 app/tools/analyze.py notas.wav --stability 4 --gate-db -55 --bend</code>
     <tr><td><code>--confidence</code></td><td>Confianza mínima (modo mono).</td></tr>
     <tr><td><code>--salience</code></td><td>Fuerza mínima de cada nota (modo poly).</td></tr>
     <tr><td><code>--poly-window</code></td><td><code>fast</code> o <code>precise</code>.</td></tr>
+    <tr><td><code>--poly-hold</code></td><td>Milisegundos para agrupar las notas de un acorde (por defecto 80).</td></tr>
     <tr><td><code>--bend</code></td><td>Activa el seguimiento de bends.</td></tr>
   </table>
   <p><strong>Flujo recomendado:</strong> graba tocando una escala lenta, una melodía rápida y varios acordes; analiza con distintos valores hasta que la lista de notas coincida con lo que tocaste; cuando lo tengas, introduce esos valores en la pestaña Detección de la web.</p>

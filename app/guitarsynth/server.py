@@ -7,10 +7,13 @@ Mensajes del navegador al servidor:
   {"type": "preset.save", "name": "..."}
   {"type": "preset.load", "name": "..."}
   {"type": "preset.delete", "name": "..."}
+  {"type": "library.rescan"}                buscar de nuevo archivos .sf2/.sfz
   {"type": "panic"}
 
 Mensajes del servidor al navegador:
-  {"type": "init", settings, presets, instruments, categories, status}
+  {"type": "init", settings, presets, instruments, categories, library, status}
+  {"type": "library", "dirs": [...], "engines": [...]}
+  {"type": "notice", "text": "...", "error": bool}
   {"type": "settings", "settings": {...}}
   {"type": "presets", "presets": {...}}
   {"type": "live", ...}                     nota/acorde y nivel, ~20 veces/s
@@ -70,8 +73,17 @@ def create_app(engine):
 
     async def broadcaster():
         tick = 0
+        seen_rev = engine.settings_rev
+        seen_notice = engine.notice["id"]
         while clients:
             await broadcast(dict(engine.live_state(), type="live"))
+            if engine.settings_rev != seen_rev:
+                seen_rev = engine.settings_rev
+                await broadcast({"type": "settings", "settings": engine.store.snapshot()})
+            if engine.notice["id"] != seen_notice:
+                seen_notice = engine.notice["id"]
+                await broadcast(dict(engine.notice, type="notice"))
+                await broadcast(dict(engine.status(), type="status"))
             tick += 1
             if tick % STATUS_EVERY == 0:
                 await asyncio.get_running_loop().run_in_executor(None, engine.refresh_routing)
@@ -100,6 +112,9 @@ def create_app(engine):
         elif kind == "preset.delete":
             store.delete_preset(message.get("name", ""))
             await broadcast({"type": "presets", "presets": store.list_presets()})
+        elif kind == "library.rescan":
+            await loop.run_in_executor(None, engine.rescan)
+            await broadcast(dict(engine.library_info(), type="library"))
         elif kind == "panic":
             engine.panic()
         else:
@@ -115,6 +130,7 @@ def create_app(engine):
             "presets": engine.store.list_presets(),
             "instruments": instrument_list(),
             "categories": category_list(),
+            "library": engine.library_info(),
             "status": engine.status(),
         })
         if state["broadcaster"] is None:

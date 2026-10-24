@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 # Ajustes y presets locales de la app
 app/data/
+# Bancos de sonido (pesados): los pone el usuario
+app/sounds/*
+!app/sounds/.gitkeep

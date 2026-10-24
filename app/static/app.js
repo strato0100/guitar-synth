@@ -7,8 +7,10 @@ const state = {
   instruments: [],
   categories: [],
   status: {},
+  library: { dirs: [], engines: [] },
   category: null,
   search: "",
+  signature: null,
   dragging: new Set(),   // sliders que el usuario está moviendo
 };
 
@@ -56,8 +58,9 @@ function handleMessage(msg) {
       state.presets = msg.presets;
       state.settings = msg.settings;
       state.status = msg.status;
+      state.library = msg.library;
       renderCategories();
-      renderInstruments();
+      renderEngines();
       renderPresets();
       renderSettings();
       renderStatus();
@@ -65,6 +68,13 @@ function handleMessage(msg) {
     case "settings":
       state.settings = msg.settings;
       renderSettings();
+      break;
+    case "library":
+      state.library = msg;
+      renderEngines();
+      break;
+    case "notice":
+      toast(msg.text, msg.error);
       break;
     case "presets":
       state.presets = msg.presets;
@@ -122,6 +132,10 @@ function renderLive(live) {
     }
   }
 
+  const loading = !!live.loading;
+  $("#loading").classList.toggle("gone", !loading);
+  $("#engine-loading").textContent = loading ? "cargando…" : "";
+
   const synth = live.synth || [];
   const transpose = state.settings.transpose || 0;
   $("#live-synth").textContent = synth.length && transpose ? `→ synth: ${synth.join(" ")}` : "";
@@ -139,11 +153,12 @@ function renderStatus() {
   const s = state.status;
   const parts = [];
   if (s.error) parts.push(`⚠ ${s.error}`);
-  if (!s.fluidsynth) parts.push("⚠ FluidSynth detenido");
+  if (!s.synth_running && !s.loading) parts.push("⚠ Motor de sonido detenido");
   parts.push(s.modep ? "MODEP activo" : "Guitarra limpia");
   if (s.samplerate) parts.push(`${s.samplerate / 1000} kHz`);
   $("#status-text").textContent = parts.join(" · ");
-  $("#footer").textContent = `Entrada ${s.capture_port || "?"} · SoundFont ${(s.soundfont || "").split("/").pop()}`;
+  $("#footer").textContent = `Entrada ${s.capture_port || "?"} · ${s.engine_label || "sin motor"}` +
+    (s.sound ? ` · ${s.sound}` : "");
 }
 
 // --- instrumentos --------------------------------------------------------
@@ -170,12 +185,91 @@ function renderCategories() {
   }
 }
 
+function currentEngine() {
+  return state.library.engines.find((e) => e.id === state.settings.engine) || null;
+}
+
+function soundName(engine, id) {
+  const found = engine && engine.sounds.find((x) => x.id === id);
+  return found ? found.name : (id || "").split("/").pop().replace(/\.[^.]+$/, "");
+}
+
+function renderEngines() {
+  const box = $("#engines");
+  box.innerHTML = "";
+  for (const e of state.library.engines) {
+    const b = document.createElement("button");
+    b.textContent = e.label;
+    b.disabled = !e.available;
+    b.title = e.available ? `${e.sounds.length} archivo(s) .${e.kind}` : e.hint;
+    b.classList.toggle("active", e.id === state.settings.engine);
+    b.onclick = () => {
+      setValues({ engine: e.id });
+      renderEngines();
+    };
+    box.appendChild(b);
+  }
+  renderEngineUI();
+}
+
+function renderEngineUI() {
+  const engine = currentEngine();
+  if (!engine) return;
+
+  // Aviso cuando falta el programa o no hay archivos
+  const hint = $("#engine-hint");
+  const folders = state.library.dirs.join(", ");
+  if (!engine.available) hint.textContent = engine.hint;
+  else if (!engine.sounds.length) hint.textContent = `No hay archivos .${engine.kind}. Copia alguno a: ${folders}`;
+  else hint.textContent = engine.gm
+    ? "Los 128 instrumentos General MIDI del banco elegido."
+    : "Cada archivo SFZ es un instrumento completo.";
+
+  // Selector de banco: sólo cuando el motor usa SoundFonts
+  const bankRow = $("#bank-row");
+  bankRow.classList.toggle("gone", engine.kind !== "sf2");
+  const select = $("#sound-select");
+  select.innerHTML = "";
+  for (const sound of engine.sounds) {
+    const o = document.createElement("option");
+    o.value = sound.id;
+    o.textContent = sound.size_mb ? `${sound.name} (${sound.size_mb} MB)` : sound.name;
+    select.appendChild(o);
+  }
+  select.value = state.settings[engine.setting] || "";
+
+  $("#categories").classList.toggle("gone", !engine.gm);
+  $("#search").classList.toggle("gone", false);
+  $("#search").placeholder = engine.gm ? "Buscar: sax, violín, organ, pad…" : "Buscar instrumento…";
+  renderInstruments();
+}
+
 function renderInstruments() {
   const grid = $("#instruments");
   grid.innerHTML = "";
+  const engine = currentEngine();
   const q = normalize(state.search.trim());
-  let lastCategory = null;
 
+  if (engine && !engine.gm) {
+    for (const sound of engine.sounds) {
+      if (q && !normalize(`${sound.name} ${sound.folder}`).includes(q)) continue;
+      const b = document.createElement("button");
+      b.className = "instrument";
+      b.dataset.sound = sound.id;
+      b.innerHTML = `<span class="num"></span><span></span>`;
+      b.children[0].textContent = sound.folder;
+      b.children[1].textContent = sound.name;
+      b.onclick = () => {
+        setValues({ [engine.setting]: sound.id });
+        markInstrument();
+      };
+      grid.appendChild(b);
+    }
+    markInstrument();
+    return;
+  }
+
+  let lastCategory = null;
   for (const inst of state.instruments) {
     if (state.category && inst.category !== state.category) continue;
     if (q && !normalize(`${inst.name} ${inst.en} ${inst.category} ${inst.program + 1}`).includes(q)) continue;
@@ -203,11 +297,21 @@ function renderInstruments() {
 }
 
 function markInstrument() {
+  const engine = currentEngine();
   for (const b of $$(".instrument")) {
-    b.classList.toggle("active", Number(b.dataset.program) === state.settings.program);
+    const active = engine && !engine.gm
+      ? b.dataset.sound === state.settings[engine.setting]
+      : Number(b.dataset.program) === state.settings.program;
+    b.classList.toggle("active", active);
   }
-  const inst = state.instruments[state.settings.program];
-  $("#live-instrument").textContent = inst ? `${inst.icon} ${inst.name}` : "—";
+  let label = "—";
+  if (engine && !engine.gm) {
+    label = `🎼 ${soundName(engine, state.settings[engine.setting])}`;
+  } else {
+    const inst = state.instruments[state.settings.program];
+    if (inst) label = `${inst.icon} ${inst.name}`;
+  }
+  $("#live-instrument").textContent = label;
 }
 
 // --- ajustes -------------------------------------------------------------
@@ -216,6 +320,7 @@ function formatValue(key, value) {
   if (key === "room" || key === "confidence" || key === "salience") return Number(value).toFixed(2);
   if (key === "gate_db") return `${value} dB`;
   if (key === "onset_db") return `${value} dB`;
+  if (key === "poly_hold") return `${value} ms`;
   if (key === "a4") return `${Number(value).toFixed(1)} Hz`;
   return String(value);
 }
@@ -270,14 +375,25 @@ function renderSettings() {
   $("#transpose-label").textContent = `${t > 0 ? "+" : ""}${t} st${octaves}`;
 
   updateGateMarker(s.gate_db);
-  markInstrument();
+  // Reconstruir la lista de instrumentos sólo si cambia algo que la afecta
+  const signature = [s.engine, s.sf2, s.sfz, s.program].join("|");
+  if (signature !== state.signature && state.library.engines.length) {
+    state.signature = signature;
+    renderEngines();
+  } else {
+    markInstrument();
+  }
 }
 
 // --- presets -------------------------------------------------------------
 
 function describePreset(p) {
-  const inst = state.instruments[p.program];
-  const parts = [inst ? inst.name : `Programa ${p.program}`];
+  const engine = state.library.engines.find((e) => e.id === p.engine);
+  let first;
+  if (engine && !engine.gm) first = soundName(engine, p[engine.setting]);
+  else first = (state.instruments[p.program] || { name: `Programa ${p.program}` }).name;
+  const parts = [first];
+  if (engine && engine.gm && p.sf2) parts.push(soundName(engine, p.sf2));
   if (p.mode) parts.push(p.mode === "poly" ? "acordes" : "notas");
   if (p.transpose) parts.push(`${p.transpose > 0 ? "+" : ""}${p.transpose} st`);
   if (p.bend_enabled) parts.push("bends");
@@ -363,6 +479,12 @@ function setup() {
       renderSettings();
     };
   }
+
+  $("#sound-select").onchange = (e) => {
+    const engine = currentEngine();
+    if (engine && e.target.value) setValues({ [engine.setting]: e.target.value });
+  };
+  $("#rescan").onclick = () => send({ type: "library.rescan" });
 
   $("#bend").onchange = (e) => setValues({ bend_enabled: e.target.checked });
 

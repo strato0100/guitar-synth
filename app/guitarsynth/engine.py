@@ -1,11 +1,14 @@
 """
-Motor de la app: une JACK, el detector de notas y FluidSynth.
+Motor de la app: une JACK, el detector de notas y el motor de síntesis.
 
   system:capture_1 ──> guitar-synth:input ──> (hilo de análisis) ──┐
                                                                    │ MIDI
   guitar-synth:midi_out <──────────────────────────────────────────┘
           │
-          └──> gsynth-fluid (FluidSynth) ──> system:playback_1/2
+          └──> motor de síntesis (FluidSynth o sfizz) ──> system:playback_1/2
+
+El motor de síntesis y su archivo de sonido (.sf2 / .sfz) se pueden cambiar
+en caliente desde la web: se para el proceso y se arranca otro.
 
 El callback de JACK sólo copia audio y escribe MIDI pendiente; todo el
 análisis va en un hilo aparte. Toda la lógica de notas (qué suena, qué
@@ -14,6 +17,7 @@ cambios mediante banderas.
 """
 
 import logging
+import os
 import queue
 import sys
 import threading
@@ -23,8 +27,8 @@ from collections import deque
 import jack
 import numpy as np
 
+from .backends import BACKENDS, DEFAULT_ENGINE, scan_library
 from .dsp import Decimator, note_name
-from .fluid import DEFAULT_SOUNDFONT, FluidSynth
 from .mono import MonoTracker
 from .poly import PolyTracker
 from .router import OutputRouter
@@ -35,12 +39,20 @@ MIDI_CHANNEL = 0
 
 
 class Engine:
-    def __init__(self, store, capture_port="system:capture_1", soundfont=None,
-                 client_name="guitar-synth", fluid_gain=0.7):
+    def __init__(self, store, capture_port="system:capture_1", sound_dirs=(),
+                 client_name="guitar-synth", synth_gain=0.7):
         self.store = store
         self.capture_port = capture_port
         self.client_name = client_name
-        self.fluid = FluidSynth(soundfont or DEFAULT_SOUNDFONT, gain=fluid_gain)
+        self.sound_dirs = list(sound_dirs)
+        self.synth_gain = synth_gain
+        self.library = scan_library(self.sound_dirs)
+
+        self.backend = None
+        self.loading = False
+        self.switch_lock = threading.Lock()
+        self.settings_rev = 0       # sube cuando la app corrige ajustes por su cuenta
+        self.notice = {"id": 0, "text": "", "error": False}
 
         self.audio_queue = queue.Queue(maxsize=1024)
         self.midi_pending = deque()
@@ -83,18 +95,14 @@ class Engine:
                                f"Disponibles: {', '.join(captures) or 'ninguno'}")
         self.client.connect(self.capture_port, self.inport)
 
-        midi_in, synth_outputs = self.fluid.start(self.client, self.samplerate)
-        self.client.connect(self.midi_out, midi_in)
-        log.info("FluidSynth listo: MIDI %s, audio %s", midi_in, ", ".join(synth_outputs))
-
         self.router = OutputRouter(self.client, self.capture_port)
-        self.router.synth_ports = synth_outputs
         log.info("MODEP %s", "detectado: la guitarra sale por el pedalboard"
                  if self.router.modep else "no activo: la guitarra sale limpia")
 
         settings = self.store.snapshot()
-        self.router.apply(settings["output"])
-        self._send_sound_settings(settings)
+        engine_id, sound = self._choose(settings)
+        self._launch(engine_id, sound)
+        self._sync_choice(engine_id, sound, settings)
 
         self.running.set()
         self.worker = threading.Thread(target=self._worker, name="analysis", daemon=True)
@@ -111,7 +119,8 @@ class Engine:
                 self.router.restore()
         except jack.JackError:
             pass
-        self.fluid.stop()
+        if self.backend:
+            self.backend.stop()
         try:
             self.client.deactivate()
             self.client.close()
@@ -162,14 +171,139 @@ class Engine:
         self._queue_midi([0xE0 | MIDI_CHANNEL, value & 0x7F, value >> 7])
 
     def _send_sound_settings(self, s):
-        self._queue_midi([0xC0 | MIDI_CHANNEL, s["program"]])
+        if self.backend.gm:
+            self._queue_midi([0xC0 | MIDI_CHANNEL, s["program"]])
         self._cc(7, s["volume"])
         self._cc(91, s["reverb"])
         self._cc(93, s["chorus"])
         self._send_bend_range(s["bend_range"])
         self._send_bend(0, s["bend_range"])
-        self.fluid.set_reverb_room(s["room"])
-        self.fluid.command("chorus on")
+        self.backend.set_reverb_room(s["room"])
+
+    # --- motores de síntesis -------------------------------------------
+
+    def library_info(self):
+        return {
+            "dirs": self.sound_dirs,
+            "engines": [{
+                "id": cls.id, "label": cls.label, "kind": cls.kind, "gm": cls.gm,
+                "setting": cls.setting, "available": cls.available(),
+                "hint": cls.install_hint, "sounds": self.library[cls.kind],
+            } for cls in BACKENDS.values()],
+        }
+
+    def rescan(self):
+        self.library = scan_library(self.sound_dirs)
+
+    def _announce(self, text, error=False):
+        self.notice = {"id": self.notice["id"] + 1, "text": text, "error": error}
+        (log.warning if error else log.info)("%s", text)
+
+    def _default_sound(self, cls):
+        sounds = self.library[cls.kind]
+        if cls.id == "fluidsynth":
+            for sound in sounds:
+                if "fluidr3_gm" in sound["id"].lower():
+                    return sound["id"]
+        return sounds[0]["id"] if sounds else None
+
+    def _choose(self, settings):
+        """(motor, archivo) que corresponden a los ajustes, con alternativas
+        si el motor no está instalado o el archivo ya no existe."""
+        order = [settings["engine"]] + [e for e in BACKENDS if e != settings["engine"]]
+        for engine_id in order:
+            cls = BACKENDS[engine_id]
+            if not cls.available():
+                continue
+            ids = {s["id"] for s in self.library[cls.kind]}
+            wanted = settings.get(cls.setting)
+            sound = wanted if wanted in ids else self._default_sound(cls)
+            if sound:
+                return engine_id, sound
+        raise RuntimeError(
+            "No hay ningún motor de sonido utilizable: instala fluidsynth y deja al menos "
+            "una SoundFont (.sf2) en /usr/share/sounds/sf2 o en app/sounds")
+
+    def _launch(self, engine_id, sound):
+        """Arranca un motor, lo conecta y reaplica el sonido. Sin bloqueos externos."""
+        backend = BACKENDS[engine_id](self.synth_gain)
+        midi_in, outputs = backend.start(self.client, self.samplerate, sound)
+        self.client.connect(self.midi_out, midi_in)
+        self.backend = backend
+        self.router.synth_ports = outputs
+        settings = self.store.snapshot()
+        self.router.apply(settings["output"])
+        self._send_sound_settings(settings)
+        log.info("%s listo con %s (MIDI %s, audio %s)", backend.label,
+                 sound, midi_in, ", ".join(outputs))
+
+    def _sync_choice(self, engine_id, sound, expected):
+        """
+        Deja en los ajustes lo que realmente está sonando, pero sólo donde
+        nadie ha cambiado nada desde que empezó el cambio (`expected`): si el
+        usuario ya pidió otra cosa, esa petición manda.
+        """
+        current = self.store.snapshot()
+        wanted = {"engine": engine_id, BACKENDS[engine_id].setting: sound}
+        changes = {k: v for k, v in wanted.items() if current[k] == expected[k]}
+        if self.store.update(changes):
+            self.settings_rev += 1
+
+    def request_switch(self):
+        """Cambia de motor o de archivo si los ajustes lo piden (en segundo plano)."""
+        threading.Thread(target=self._switch, name="switch", daemon=True).start()
+
+    def _switch(self):
+        with self.switch_lock:
+            if not self.running.is_set():
+                return
+            settings = self.store.snapshot()
+            try:
+                engine_id, sound = self._choose(settings)
+            except RuntimeError as exc:
+                self._announce(str(exc), True)
+                return
+            requested = settings["engine"]
+            if engine_id != requested:
+                self._announce(f"{BACKENDS[requested].label} no está disponible (falta el programa "
+                               f"o no hay archivos .{BACKENDS[requested].kind}); se usa "
+                               f"{BACKENDS[engine_id].label}", True)
+            current = self.backend
+            if current and current.id == engine_id and current.sound == sound and current.running:
+                self._sync_choice(engine_id, sound, settings)
+                return
+
+            previous = (current.id, current.sound) if current else None
+            self.loading = True
+            try:
+                self._reset_request = True      # el hilo de análisis apaga sus notas
+                self._cc(123, 0)
+                time.sleep(0.05)
+                if current:
+                    current.stop()
+                    self.backend = None
+                self._announce_loading(engine_id, sound)
+                try:
+                    self._launch(engine_id, sound)
+                except (RuntimeError, jack.JackError) as exc:
+                    self._announce(f"No se pudo cargar: {exc}", True)
+                    if previous is None:
+                        raise
+                    self._launch(*previous)         # volver a lo que sonaba antes
+                    engine_id, sound = previous
+                    self._sync_choice(engine_id, sound, settings)
+                    return
+                self._sync_choice(engine_id, sound, settings)
+                self._announce(f"{BACKENDS[engine_id].label}: "
+                               f"{os.path.splitext(os.path.basename(sound))[0]}")
+            except (RuntimeError, jack.JackError) as exc:
+                self.error = f"Sin motor de sonido: {exc}"
+                self._announce(self.error, True)
+            finally:
+                self.loading = False
+
+    def _announce_loading(self, engine_id, sound):
+        log.info("Cargando %s (%s)…", BACKENDS[engine_id].label, os.path.basename(sound))
 
     # --- cambios desde la interfaz -------------------------------------
 
@@ -180,7 +314,9 @@ class Engine:
             return applied
         s = self.store.snapshot()
 
-        if "program" in applied:
+        if applied.keys() & {"engine", "sf2", "sfz"}:
+            self.request_switch()
+        if "program" in applied and self.backend and self.backend.gm:
             self._queue_midi([0xC0 | MIDI_CHANNEL, s["program"]])
         if "volume" in applied:
             self._cc(7, s["volume"])
@@ -188,8 +324,8 @@ class Engine:
             self._cc(91, s["reverb"])
         if "chorus" in applied:
             self._cc(93, s["chorus"])
-        if "room" in applied:
-            self.fluid.set_reverb_room(s["room"])
+        if "room" in applied and self.backend:
+            self.backend.set_reverb_room(s["room"])
         if "bend_range" in applied:
             self._send_bend_range(s["bend_range"])
         if "bend_enabled" in applied and not s["bend_enabled"]:
@@ -259,6 +395,8 @@ class Engine:
                              synth=[note_name(n) for n in sorted(self.sounding.values())])
 
     def _handle_events(self, events, s):
+        if self.loading or self.backend is None:
+            return      # el motor se está cambiando: no hay a quién enviar notas
         synth_on = s["output"] in ("synth", "both")
         for kind, value in events:
             if kind == "on":
@@ -282,10 +420,13 @@ class Engine:
             "samplerate": getattr(self, "samplerate", None),
             "capture_port": self.capture_port,
             "modep": bool(self.router and self.router.modep),
-            "fluidsynth": self.fluid.running,
-            "soundfont": self.fluid.soundfont,
+            "engine": self.backend.id if self.backend else None,
+            "engine_label": self.backend.label if self.backend else None,
+            "sound": os.path.basename(self.backend.sound) if self.backend and self.backend.sound else None,
+            "synth_running": bool(self.backend and self.backend.running),
+            "loading": self.loading,
             "error": self.error,
         }
 
     def live_state(self):
-        return dict(self.live)
+        return dict(self.live, loading=self.loading)
