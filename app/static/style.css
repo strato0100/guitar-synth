@@ -10,6 +10,7 @@
   --yellow: #f5c542;
   --red: #ff5c5c;
   --radius: 12px;
+  --topbar-h: 68px;
 }
 
 * { box-sizing: border-box; scrollbar-color: var(--border) transparent; }
@@ -50,23 +51,43 @@ input:focus { border-color: var(--blue); }
 .small { font-size: .85rem; }
 .mono { font-family: "DejaVu Sans Mono", ui-monospace, monospace; }
 
-/* --- barra superior --- */
+/* --- franja superior: lo detectado, en pequeño --- */
 .topbar {
   position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; gap: .8rem;
-  padding: .6rem 1rem;
-  background: rgba(17, 20, 24, .95);
+  background: rgba(17, 20, 24, .96);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(6px);
 }
-.brand { font-weight: 700; }
-.status { flex: 1; display: flex; align-items: center; gap: .45rem; color: var(--dim); font-size: .85rem; min-width: 0; }
-.status span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip { display: flex; align-items: center; gap: .7rem; padding: .45rem .9rem .1rem; }
+.strip-note { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: .55rem; }
+.strip-note .live-sub {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .85rem; min-height: 0; margin: 0;
+}
+.strip-gauges { display: flex; flex-direction: column; gap: .35rem; width: 96px; flex: none; }
+.mini-cents { position: relative; height: 6px; background: var(--panel-2); border-radius: 3px; }
+.mini-cents .cents-zone { position: absolute; left: 45%; width: 10%; top: 0; bottom: 0; background: rgba(61, 220, 132, .3); }
+.mini-cents .cents-needle { top: -3px; height: 12px; width: 3px; margin-left: -1.5px; }
+.mini-cents.hidden { visibility: hidden; }
+.meter.mini { height: 6px; flex: none; }
+.strip-status {
+  padding: 0 .9rem .35rem; font-size: .72rem; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .dot.on { background: var(--green); }
 .dot.off { background: var(--red); }
 
 main { max-width: 900px; margin: 0 auto; padding: 1rem; padding-bottom: 3rem; }
+.col-tabs, .col-play { min-width: 0; }
+@media (min-width: 980px) {
+  main { max-width: 1240px; }
+  .layout { display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+  .col-play {
+    position: sticky; top: calc(var(--topbar-h) + .8rem);
+    max-height: calc(100vh - var(--topbar-h) - 1.6rem); overflow-y: auto;
+  }
+}
 
 .card {
   background: var(--panel);
@@ -76,20 +97,15 @@ main { max-width: 900px; margin: 0 auto; padding: 1rem; padding-bottom: 3rem; }
   margin-bottom: 1rem;
 }
 
-/* --- panel en vivo --- */
-.live { text-align: center; }
-.live-name {
-  font-size: clamp(3.5rem, 16vw, 7rem);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -.02em;
-  transition: color .15s;
-}
+/* --- nota o acorde detectado --- */
+.live-name { font-weight: 800; line-height: 1; letter-spacing: -.02em; transition: color .15s; }
+.live-name.compact { font-size: 1.9rem; min-width: 2.2ch; }
+.live-name.big { font-size: clamp(3.5rem, 16vw, 7rem); }
 .live-name.idle { color: var(--border); }
 .live-name.approx { color: var(--yellow); }
 .live-name.unknown { color: var(--red); }
 .live-sub { color: var(--dim); min-height: 1.4em; margin-top: .3rem; font-family: "DejaVu Sans Mono", monospace; }
-.live-instrument { margin-top: .5rem; display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap; }
+.detect-live { text-align: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
 
 .cents { max-width: 360px; margin: .6rem auto 0; }
 .cents.hidden { visibility: hidden; }
@@ -105,11 +121,28 @@ main { max-width: 900px; margin: 0 auto; padding: 1rem; padding-bottom: 3rem; }
 .meter { flex: 1; position: relative; height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
 .meter-fill { height: 100%; width: 0; background: var(--green); transition: width .05s linear; }
 .meter-gate { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--yellow); }
-#meter-db { width: 4.5em; text-align: right; }
+.meter-db { width: 4.5em; text-align: right; }
+
+/* --- instrumento actual --- */
+.hero { display: flex; align-items: center; gap: .6rem; padding: 1.1rem .8rem; }
+.hero .nav {
+  width: 3.3rem; height: 3.3rem; padding: 0; flex: none; border-radius: 50%;
+  font-size: 1.9rem; line-height: 1;
+}
+.hero-main { flex: 1; min-width: 0; text-align: center; cursor: pointer; }
+.hero-icon { font-size: 2.2rem; line-height: 1.2; }
+.hero-name {
+  font-size: clamp(1.5rem, 6.5vw, 2.5rem); font-weight: 800; line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.hero-sub { font-size: .85rem; margin-top: .3rem; }
+.hero-synth { font-size: .8rem; min-height: 1.1em; font-family: "DejaVu Sans Mono", monospace; }
 
 /* --- controles --- */
-.row-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
-.row-controls .control { flex: 1 1 220px; margin: 0; }
+.quick .control:last-child { margin-bottom: 0; }
+.segmented.big button { padding: .9rem .3rem; font-size: 1rem; }
+.stepper.big button { padding: .85rem 0; font-size: 1rem; }
+.control.slider.big input[type=range] { height: 40px; }
 
 .control { margin-bottom: 1.1rem; }
 .control > label { display: flex; justify-content: space-between; margin-bottom: .4rem; font-size: .9rem; }
@@ -169,7 +202,7 @@ select {
 .segmented button.unavailable { opacity: .5; }
 .gone { display: none !important; }
 .loading {
-  position: fixed; left: 0; right: 0; top: 52px; z-index: 15; text-align: center;
+  position: fixed; left: 0; right: 0; top: var(--topbar-h); z-index: 15; text-align: center;
   background: var(--yellow); color: #1b1500; font-weight: 600; padding: .45rem;
 }
 .advice { background: var(--yellow); color: #1b1500; padding: .5rem 1rem; font-size: .9rem; }
@@ -208,6 +241,8 @@ footer { text-align: center; margin-top: 1rem; }
 
 @media (max-width: 520px) {
   main { padding: .6rem; }
+  .strip-gauges { width: 64px; }
+  .live-name.compact { font-size: 1.6rem; }
   .card { padding: .8rem; }
   .instrument-grid { grid-template-columns: 1fr 1fr; }
 }

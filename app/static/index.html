@@ -8,154 +8,178 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<!-- Franja fija: lo que se detecta, en pequeño, siempre a la vista -->
 <header class="topbar">
-  <div class="brand">🎸 Guitar Synth</div>
-  <div class="status">
+  <div class="strip">
     <span id="conn" class="dot off" title="Conexión con la Pi"></span>
-    <span id="status-text">Conectando…</span>
+    <div class="strip-note" title="Nota o acorde que se está detectando">
+      <span class="live-name compact idle" data-live="name">—</span>
+      <span class="live-sub" data-live="sub">Toca algo…</span>
+    </div>
+    <div class="strip-gauges">
+      <div class="mini-cents" data-live="cents" title="Afinación (cents)">
+        <div class="cents-zone"></div><div class="cents-needle" data-live="needle"></div>
+      </div>
+      <div class="meter mini" title="Nivel de entrada">
+        <div class="meter-fill" data-live="meter-fill"></div><div class="meter-gate"></div>
+      </div>
+    </div>
+    <button id="panic" class="danger" title="Apagar todas las notas">Pánico</button>
   </div>
-  <button id="panic" class="danger" title="Apagar todas las notas">Pánico</button>
+  <div id="status-text" class="strip-status">Conectando…</div>
 </header>
 <div id="advice" class="advice gone"></div>
 
 <main>
-  <!-- Lo que se está tocando -->
-  <section class="card live">
-    <div class="live-main">
-      <div id="live-name" class="live-name idle">—</div>
-      <div id="live-sub" class="live-sub">Toca algo…</div>
-    </div>
-    <div id="cents" class="cents">
-      <div class="cents-scale"><span>-50</span><span>0</span><span>+50</span></div>
-      <div class="cents-track"><div class="cents-zone"></div><div id="cents-needle" class="cents-needle"></div></div>
-    </div>
-    <div class="live-instrument">
-      <span id="live-instrument">—</span>
-      <span id="live-synth" class="muted"></span>
-    </div>
-    <div class="meter-row">
-      <span class="muted">Entrada</span>
-      <div class="meter"><div id="meter-fill" class="meter-fill"></div><div id="meter-gate" class="meter-gate"></div></div>
-      <span id="meter-db" class="muted mono">-∞ dB</span>
-    </div>
-  </section>
+  <div class="layout">
+    <!-- Lo que se toca: instrumento y controles rápidos -->
+    <div class="col-play">
+      <section class="card hero">
+        <button id="inst-prev" class="nav" aria-label="Instrumento anterior" title="Instrumento anterior">‹</button>
+        <div id="hero-main" class="hero-main" title="Elegir instrumento">
+          <div id="hero-icon" class="hero-icon">🎹</div>
+          <div id="hero-name" class="hero-name">—</div>
+          <div id="hero-sub" class="hero-sub muted"></div>
+          <div id="hero-synth" class="hero-synth muted"></div>
+        </div>
+        <button id="inst-next" class="nav" aria-label="Instrumento siguiente" title="Instrumento siguiente">›</button>
+      </section>
 
-  <!-- Modo y salida -->
-  <section class="card row-controls">
-    <div class="control">
-      <label>Modo</label>
-      <div class="segmented" data-key="mode">
-        <button data-value="mono">Notas</button>
-        <button data-value="poly">Acordes</button>
-      </div>
+      <section class="card quick">
+        <div class="control">
+          <label>Salida</label>
+          <div class="segmented big" data-key="output">
+            <button data-value="synth">Synth</button>
+            <button data-value="guitar">Guitarra</button>
+            <button data-value="both">Ambos</button>
+          </div>
+        </div>
+        <div class="control">
+          <label>Modo</label>
+          <div class="segmented big" data-key="mode">
+            <button data-value="mono">Notas</button>
+            <button data-value="poly">Acordes</button>
+          </div>
+        </div>
+        <div class="control">
+          <label>Transposición <span id="transpose-label" class="value"></span></label>
+          <div class="stepper big">
+            <button data-transpose="-12">-8va</button>
+            <button data-transpose="-1">-1</button>
+            <button data-transpose="0">0</button>
+            <button data-transpose="1">+1</button>
+            <button data-transpose="12">+8va</button>
+          </div>
+        </div>
+        <div class="control slider big" data-key="volume" data-label="Volumen" data-min="0" data-max="127" data-step="1"></div>
+        <div class="control slider big" data-key="reverb" data-label="Reverb" data-min="0" data-max="127" data-step="1"></div>
+      </section>
     </div>
-    <div class="control">
-      <label>Salida</label>
-      <div class="segmented" data-key="output">
-        <button data-value="synth">Synth</button>
-        <button data-value="guitar">Guitarra</button>
-        <button data-value="both">Ambos</button>
-      </div>
-    </div>
-  </section>
 
-  <nav class="tabs">
-    <button data-tab="instruments" class="active">Instrumento</button>
-    <button data-tab="sound">Sonido</button>
-    <button data-tab="presets">Presets</button>
-    <button data-tab="detection">Detección</button>
-  </nav>
+    <!-- Elegir y ajustar -->
+    <div class="col-tabs">
+      <nav class="tabs">
+        <button data-tab="instruments" class="active">Instrumento</button>
+        <button data-tab="presets">Presets</button>
+        <button data-tab="sound">Sonido</button>
+        <button data-tab="detection">Detección</button>
+      </nav>
 
-  <!-- Instrumentos -->
-  <section id="tab-instruments" class="card tab-panel active">
-    <div class="control">
-      <label>Motor de sonido <span id="engine-loading" class="value"></span></label>
-      <div id="engines" class="segmented"></div>
-      <small id="engine-hint" class="muted"></small>
-    </div>
-    <div id="bank-row" class="control bank-row">
-      <label for="sound-select">Banco de sonidos (SoundFont)</label>
-      <div class="bank-controls">
-        <select id="sound-select"></select>
-        <button id="rescan" title="Buscar archivos nuevos">↻</button>
-      </div>
-    </div>
-    <input id="search" type="search" placeholder="Buscar: sax, violín, organ, pad…" autocomplete="off">
-    <div id="categories" class="chips"></div>
-    <div id="instruments" class="instrument-grid"></div>
-    <details class="engine-log">
-      <summary>Registro del motor de sonido</summary>
-      <pre id="engine-log">(vacío)</pre>
-    </details>
-  </section>
+      <!-- Instrumentos -->
+      <section id="tab-instruments" class="card tab-panel active">
+        <div class="control">
+          <label>Motor de sonido <span id="engine-loading" class="value"></span></label>
+          <div id="engines" class="segmented"></div>
+          <small id="engine-hint" class="muted"></small>
+        </div>
+        <div id="bank-row" class="control bank-row">
+          <label for="sound-select">Banco de sonidos (SoundFont)</label>
+          <div class="bank-controls">
+            <select id="sound-select"></select>
+            <button id="rescan" title="Buscar archivos nuevos">↻</button>
+          </div>
+        </div>
+        <input id="search" type="search" placeholder="Buscar: sax, violín, organ, pad…" autocomplete="off">
+        <div id="categories" class="chips"></div>
+        <div id="instruments" class="instrument-grid"></div>
+        <details class="engine-log">
+          <summary>Registro del motor de sonido</summary>
+          <pre id="engine-log">(vacío)</pre>
+        </details>
+      </section>
 
-  <!-- Sonido -->
-  <section id="tab-sound" class="card tab-panel">
-    <div class="control">
-      <label>Transposición <span id="transpose-label" class="value"></span></label>
-      <div class="stepper">
-        <button data-transpose="-12">-8va</button>
-        <button data-transpose="-1">-1</button>
-        <button data-transpose="0">0</button>
-        <button data-transpose="1">+1</button>
-        <button data-transpose="12">+8va</button>
-      </div>
-    </div>
-    <div class="control slider" data-key="volume" data-label="Volumen" data-min="0" data-max="127" data-step="1"></div>
-    <div class="control slider" data-key="velocity" data-label="Intensidad de nota (velocity)" data-min="1" data-max="127" data-step="1"></div>
-    <div class="control slider" data-key="reverb" data-label="Reverb" data-min="0" data-max="127" data-step="1"></div>
-    <div class="control slider" data-key="room" data-label="Tamaño de sala" data-min="0" data-max="1" data-step="0.01"></div>
-    <div class="control slider" data-key="chorus" data-label="Chorus" data-min="0" data-max="127" data-step="1"></div>
-    <div class="control toggle-row">
-      <label for="bend">Seguir bends y vibrato <small class="muted">(sólo modo Notas)</small></label>
-      <input id="bend" type="checkbox" class="switch" data-key="bend_enabled">
-    </div>
-    <div class="control slider" data-key="bend_range" data-label="Rango de bend (semitonos)" data-min="1" data-max="12" data-step="1"></div>
-  </section>
+      <!-- Presets -->
+      <section id="tab-presets" class="card tab-panel">
+        <form id="preset-form" class="preset-form">
+          <input id="preset-name" type="text" placeholder="Nombre del preset" maxlength="60" required>
+          <button type="submit" class="primary">Guardar actual</button>
+        </form>
+        <p class="muted small">Un preset guarda instrumento, modo, transposición, volumen, efectos, velocity y bends.</p>
+        <input id="preset-search" type="search" placeholder="Buscar preset: violín, bajo, pad…" autocomplete="off">
+        <ul id="presets" class="preset-list"></ul>
+      </section>
 
-  <!-- Presets -->
-  <section id="tab-presets" class="card tab-panel">
-    <form id="preset-form" class="preset-form">
-      <input id="preset-name" type="text" placeholder="Nombre del preset" maxlength="60" required>
-      <button type="submit" class="primary">Guardar actual</button>
-    </form>
-    <p class="muted small">Un preset guarda instrumento, modo, transposición, volumen, efectos, velocity y bends.</p>
-    <input id="preset-search" type="search" placeholder="Buscar preset: violín, bajo, pad…" autocomplete="off">
-    <ul id="presets" class="preset-list"></ul>
-  </section>
+      <!-- Sonido (ajuste fino) -->
+      <section id="tab-sound" class="card tab-panel">
+        <p class="muted small">El volumen, la reverb, la transposición, la salida y el modo están siempre a la vista a la izquierda (o arriba, en el móvil).</p>
+        <div class="control slider" data-key="velocity" data-label="Intensidad de nota (velocity)" data-min="1" data-max="127" data-step="1"></div>
+        <div class="control slider" data-key="room" data-label="Tamaño de sala" data-min="0" data-max="1" data-step="0.01"></div>
+        <div class="control slider" data-key="chorus" data-label="Chorus" data-min="0" data-max="127" data-step="1"></div>
+        <div class="control toggle-row">
+          <label for="bend">Seguir bends y vibrato <small class="muted">(sólo modo Notas)</small></label>
+          <input id="bend" type="checkbox" class="switch" data-key="bend_enabled">
+        </div>
+        <div class="control slider" data-key="bend_range" data-label="Rango de bend (semitonos)" data-min="1" data-max="12" data-step="1"></div>
+      </section>
 
-  <!-- Detección -->
-  <section id="tab-detection" class="card tab-panel">
-    <p class="muted small">Ajusta mirando el medidor de entrada: la línea amarilla es la puerta de ruido. En silencio la barra debe quedar por debajo de la línea; tocando, por encima.</p>
-    <div class="control slider" data-key="gate_db" data-label="Puerta de ruido (dBFS)" data-min="-80" data-max="-20" data-step="1"
-         data-help="Nivel mínimo para considerar que hay señal. Súbelo si suenan notas en silencio."></div>
-    <div class="control slider" data-key="stability" data-label="Estabilidad" data-min="1" data-max="10" data-step="1"
-         data-help="Lecturas iguales necesarias para aceptar una nota. Más = más estable pero más lento."></div>
-    <div class="control slider" data-key="onset_db" data-label="Detección de púa (dB)" data-min="2" data-max="20" data-step="0.5"
-         data-help="Subida de nivel que cuenta como nuevo ataque. Bájalo si no redispara notas repetidas; súbelo si redispara solo."></div>
-    <div class="control slider" data-key="confidence" data-label="Confianza mínima (Notas)" data-min="0.3" data-max="0.98" data-step="0.01"
-         data-help="Súbelo si aparecen notas erróneas; bájalo si no detecta notas."></div>
-    <div class="control slider" data-key="salience" data-label="Sensibilidad de acordes" data-min="0.05" data-max="0.8" data-step="0.01"
-         data-help="Fuerza mínima de cada nota del acorde. Súbelo si aparecen notas de más; bájalo si faltan."></div>
-    <div class="control">
-      <button id="calibrate" class="primary">Calibrar ruido de fondo</button>
-      <small class="muted">Con las cuerdas apagadas, mide el zumbido y el soplido de tu equipo (3 s), sube la puerta de ruido por encima y resta ese ruido en el modo Acordes. Hazlo si aparecen notas con la guitarra en silencio.</small>
-    </div>
-    <div class="control">
-      <label>Ventana de acordes</label>
-      <div class="segmented" data-key="poly_window">
-        <button data-value="fast">Rápida</button>
-        <button data-value="precise">Precisa</button>
-      </div>
-      <small class="muted">Precisa separa mejor las notas graves pero responde más lento.</small>
-    </div>
-    <div class="control slider" data-key="poly_hold" data-label="Agrupar acorde (ms)" data-min="0" data-max="300" data-step="10"
-         data-help="Espera este tiempo para que todas las notas del acorde suenen a la vez. Más = acorde más compacto pero con más retraso; 0 = cada nota en cuanto se detecta."></div>
-    <div class="control slider" data-key="a4" data-label="Afinación de referencia La4 (Hz)" data-min="415" data-max="466" data-step="0.5"></div>
-    <button id="detection-reset">Restablecer valores de detección</button>
-  </section>
+      <!-- Detección -->
+      <section id="tab-detection" class="card tab-panel">
+        <!-- La nota en grande vive aquí: es una herramienta para ajustar la detección -->
+        <div class="detect-live">
+          <div class="live-name big idle" data-live="name">—</div>
+          <div class="live-sub" data-live="sub">Toca algo…</div>
+          <div class="cents" data-live="cents">
+            <div class="cents-scale"><span>-50</span><span>0</span><span>+50</span></div>
+            <div class="cents-track"><div class="cents-zone"></div><div class="cents-needle" data-live="needle"></div></div>
+          </div>
+          <div class="meter-row">
+            <span class="muted">Entrada</span>
+            <div class="meter"><div class="meter-fill" data-live="meter-fill"></div><div class="meter-gate"></div></div>
+            <span class="muted mono meter-db" data-live="meter-db">-∞ dB</span>
+          </div>
+        </div>
+        <p class="muted small">Ajusta mirando el medidor de entrada: la línea amarilla es la puerta de ruido. En silencio la barra debe quedar por debajo de la línea; tocando, por encima.</p>
+        <div class="control slider" data-key="gate_db" data-label="Puerta de ruido (dBFS)" data-min="-80" data-max="-20" data-step="1"
+             data-help="Nivel mínimo para considerar que hay señal. Súbelo si suenan notas en silencio."></div>
+        <div class="control slider" data-key="stability" data-label="Estabilidad" data-min="1" data-max="10" data-step="1"
+             data-help="Lecturas iguales necesarias para aceptar una nota. Más = más estable pero más lento."></div>
+        <div class="control slider" data-key="onset_db" data-label="Detección de púa (dB)" data-min="2" data-max="20" data-step="0.5"
+             data-help="Subida de nivel que cuenta como nuevo ataque. Bájalo si no redispara notas repetidas; súbelo si redispara solo."></div>
+        <div class="control slider" data-key="confidence" data-label="Confianza mínima (Notas)" data-min="0.3" data-max="0.98" data-step="0.01"
+             data-help="Súbelo si aparecen notas erróneas; bájalo si no detecta notas."></div>
+        <div class="control slider" data-key="salience" data-label="Sensibilidad de acordes" data-min="0.05" data-max="0.8" data-step="0.01"
+             data-help="Fuerza mínima de cada nota del acorde. Súbelo si aparecen notas de más; bájalo si faltan."></div>
+        <div class="control">
+          <button id="calibrate" class="primary">Calibrar ruido de fondo</button>
+          <small class="muted">Con las cuerdas apagadas, mide el zumbido y el soplido de tu equipo (3 s), sube la puerta de ruido por encima y resta ese ruido en el modo Acordes. Hazlo si aparecen notas con la guitarra en silencio.</small>
+        </div>
+        <div class="control">
+          <label>Ventana de acordes</label>
+          <div class="segmented" data-key="poly_window">
+            <button data-value="fast">Rápida</button>
+            <button data-value="precise">Precisa</button>
+          </div>
+          <small class="muted">Precisa separa mejor las notas graves pero responde más lento.</small>
+        </div>
+        <div class="control slider" data-key="poly_hold" data-label="Agrupar acorde (ms)" data-min="0" data-max="300" data-step="10"
+             data-help="Espera este tiempo para que todas las notas del acorde suenen a la vez. Más = acorde más compacto pero con más retraso; 0 = cada nota en cuanto se detecta."></div>
+        <div class="control slider" data-key="a4" data-label="Afinación de referencia La4 (Hz)" data-min="415" data-max="466" data-step="0.5"></div>
+        <button id="detection-reset">Restablecer valores de detección</button>
+      </section>
 
-  <footer id="footer" class="muted small"></footer>
+      <footer id="footer" class="muted small"></footer>
+    </div>
+  </div>
 </main>
 
 <div id="toast" class="toast"></div>

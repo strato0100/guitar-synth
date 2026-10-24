@@ -93,43 +93,54 @@ function handleMessage(msg) {
   }
 }
 
-// --- panel en vivo -----------------------------------------------------
+// --- nota o acorde detectado (franja superior y pestaña Detección) -------
+
+const liveEls = (key) => $$(`[data-live="${key}"]`);
+
+function setLiveName(text, cls) {
+  for (const el of liveEls("name")) {
+    el.textContent = text;
+    el.classList.remove("idle", "approx", "unknown");
+    if (cls) el.classList.add(cls);
+  }
+}
+
+function setLiveSub(text) {
+  for (const el of liveEls("sub")) el.textContent = text;
+}
+
+function setCents(cents) {
+  // cents == null oculta la aguja (no hay una sola nota que afinar)
+  const c = cents == null ? 0 : Math.max(-50, Math.min(50, cents));
+  const color = Math.abs(c) <= 5 ? "var(--green)" : Math.abs(c) <= 15 ? "var(--yellow)" : "var(--red)";
+  for (const box of liveEls("cents")) {
+    box.classList.toggle("hidden", cents == null);
+    const needle = box.querySelector('[data-live="needle"]');
+    needle.style.left = `${50 + c}%`;
+    needle.style.background = color;
+  }
+}
 
 function renderLive(live) {
-  const name = $("#live-name");
-  const sub = $("#live-sub");
-  const cents = $("#cents");
-
   if (live.mode === "poly") {
-    cents.classList.add("hidden");
+    setCents(null);
     const notes = live.notes || [];
     if (!notes.length) {
-      name.textContent = "—";
-      name.className = "live-name idle";
-      sub.textContent = "Toca un acorde…";
+      setLiveName("—", "idle");
+      setLiveSub("Toca un acorde…");
     } else {
       const chord = live.chord;
-      name.textContent = chord ? chord.name : "?";
-      name.className = "live-name" + (chord ? (chord.exact ? "" : " approx") : " unknown");
-      sub.textContent = notes.join(" ");
+      setLiveName(chord ? chord.name : "?", chord ? (chord.exact ? "" : "approx") : "unknown");
+      setLiveSub(notes.join(" "));
     }
+  } else if (live.note) {
+    setLiveName(live.note, "");
+    setLiveSub(live.freq ? `${live.freq.toFixed(1)} Hz` : "");
+    setCents(live.cents == null ? 0 : live.cents);
   } else {
-    if (live.note) {
-      name.textContent = live.note;
-      name.className = "live-name";
-      sub.textContent = live.freq ? `${live.freq.toFixed(1)} Hz` : "";
-      cents.classList.remove("hidden");
-      const c = live.cents == null ? 0 : Math.max(-50, Math.min(50, live.cents));
-      const needle = $("#cents-needle");
-      needle.style.left = `${50 + c}%`;
-      needle.style.background = Math.abs(c) <= 5 ? "var(--green)"
-        : Math.abs(c) <= 15 ? "var(--yellow)" : "var(--red)";
-    } else {
-      name.textContent = "—";
-      name.className = "live-name idle";
-      sub.textContent = "Toca una nota…";
-      cents.classList.add("hidden");
-    }
+    setLiveName("—", "idle");
+    setLiveSub("Toca una nota…");
+    setCents(null);
   }
 
   const loading = !!live.loading;
@@ -140,15 +151,17 @@ function renderLive(live) {
 
   const synth = live.synth || [];
   const transpose = state.settings.transpose || 0;
-  $("#live-synth").textContent = synth.length && transpose ? `→ synth: ${synth.join(" ")}` : "";
+  $("#hero-synth").textContent = synth.length && transpose ? `→ suena: ${synth.join(" ")}` : "";
 
   // Medidor de entrada: -80 dB .. 0 dB
   const db = live.level_db == null ? -180 : live.level_db;
   const fraction = Math.max(0, Math.min(1, (db + 80) / 80));
-  const fill = $("#meter-fill");
-  fill.style.width = `${fraction * 100}%`;
-  fill.style.background = db > -3 ? "var(--red)" : db > -12 ? "var(--yellow)" : "var(--green)";
-  $("#meter-db").textContent = db < -120 ? "-∞ dB" : `${db.toFixed(0)} dB`;
+  const color = db > -3 ? "var(--red)" : db > -12 ? "var(--yellow)" : "var(--green)";
+  for (const fill of liveEls("meter-fill")) {
+    fill.style.width = `${fraction * 100}%`;
+    fill.style.background = color;
+  }
+  for (const el of liveEls("meter-db")) el.textContent = db < -120 ? "-∞ dB" : `${db.toFixed(0)} dB`;
 }
 
 function renderStatus() {
@@ -328,7 +341,45 @@ function markInstrument() {
     const inst = state.instruments[state.settings.program];
     if (inst) label = `${inst.icon} ${inst.name}`;
   }
-  $("#live-instrument").textContent = label;
+  renderHero();
+}
+
+function renderHero() {
+  const engine = currentEngine();
+  const settings = state.settings;
+  let icon = "🎹", name = "—", sub = engine ? engine.label : "";
+  if (engine && !engine.gm) {
+    icon = "🎼";
+    name = soundName(engine, settings[engine.setting]);
+  } else {
+    const inst = state.instruments[settings.program];
+    if (inst) { icon = inst.icon; name = inst.name; }
+    const bank = engine && settings.sf2 ? soundName(engine, settings.sf2) : "";
+    sub = [sub, bank].filter(Boolean).join(" · ");
+  }
+  $("#hero-icon").textContent = icon;
+  $("#hero-name").textContent = name;
+  $("#hero-sub").textContent = sub;
+}
+
+// Pasa al instrumento anterior o siguiente (General MIDI, o archivos SFZ)
+function stepInstrument(delta) {
+  const engine = currentEngine();
+  if (!engine) return;
+  if (engine.gm) {
+    const n = state.instruments.length || 128;
+    setValues({ program: ((state.settings.program || 0) + delta + n) % n });
+  } else if (engine.sounds.length) {
+    const ids = engine.sounds.map((x) => x.id);
+    const i = Math.max(0, ids.indexOf(state.settings[engine.setting]));
+    setValues({ [engine.setting]: ids[(i + delta + ids.length) % ids.length] });
+  }
+  renderSettings();
+}
+
+function openTab(name) {
+  for (const b of $$(".tabs button")) b.classList.toggle("active", b.dataset.tab === name);
+  for (const panel of $$(".tab-panel")) panel.classList.toggle("active", panel.id === `tab-${name}`);
 }
 
 // --- ajustes -------------------------------------------------------------
@@ -368,7 +419,8 @@ function buildSliders() {
 }
 
 function updateGateMarker(db) {
-  $("#meter-gate").style.left = `${Math.max(0, Math.min(1, (db + 80) / 80)) * 100}%`;
+  const left = `${Math.max(0, Math.min(1, (db + 80) / 80)) * 100}%`;
+  for (const marker of $$(".meter-gate")) marker.style.left = left;
 }
 
 function renderSettings() {
@@ -497,14 +549,14 @@ function setup() {
     }
   }
 
-  for (const b of $$(".tabs button")) {
-    b.onclick = () => {
-      for (const other of $$(".tabs button")) other.classList.toggle("active", other === b);
-      for (const panel of $$(".tab-panel")) {
-        panel.classList.toggle("active", panel.id === `tab-${b.dataset.tab}`);
-      }
-    };
-  }
+  for (const b of $$(".tabs button")) b.onclick = () => openTab(b.dataset.tab);
+
+  $("#inst-prev").onclick = () => stepInstrument(-1);
+  $("#inst-next").onclick = () => stepInstrument(1);
+  $("#hero-main").onclick = () => {
+    openTab("instruments");
+    $("#tab-instruments").scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   for (const b of $$("[data-transpose]")) {
     b.onclick = () => {
@@ -551,6 +603,10 @@ function setup() {
     send({ type: "panic" });
     toast("Todas las notas apagadas");
   };
+
+  // Enlace directo a una pestaña: http://<ip>:8080/#detection
+  const initial = location.hash.slice(1);
+  if (["instruments", "presets", "sound", "detection"].includes(initial)) openTab(initial);
 
   connect();
 }

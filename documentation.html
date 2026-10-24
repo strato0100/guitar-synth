@@ -161,15 +161,26 @@
     <tr><td><code>--verbose</code></td><td>desactivado</td><td>Muestra más mensajes, incluidos los de FluidSynth.</td></tr>
   </table>
 
+  <h3>Cómo está organizada la web</h3>
+  <p>La pantalla principal está pensada para tocar: lo que cambias con la mano está siempre a la vista, y el análisis de notas queda en un segundo plano.</p>
+  <ul>
+    <li><strong>Franja superior (siempre fija):</strong> la nota o el acorde que se detecta, en pequeño, una barrita de afinación (modo Notas), el nivel de entrada con la puerta de ruido, el estado del sistema (MODEP, frecuencia, CPU, cortes de audio) y el botón <strong>Pánico</strong>.</li>
+    <li><strong>Instrumento actual (tarjeta grande):</strong> el nombre con su icono, el motor y el banco, y las flechas <strong>‹ ›</strong> para pasar al instrumento anterior o siguiente sin abrir ningún menú. Si transpones, debajo se ve lo que suena realmente. Al tocar el nombre se abre la pestaña Instrumento.</li>
+    <li><strong>Controles rápidos:</strong> Salida, Modo, Transposición, Volumen y Reverb, con botones grandes para usarlos con el móvil o la tablet.</li>
+    <li><strong>Pestañas</strong> (debajo en el móvil, a la derecha en pantallas anchas): Instrumento, Presets, Sonido y Detección.</li>
+  </ul>
+  <p>Enlace directo a una pestaña: <code>http://&lt;ip&gt;:8080/#detection</code> (también <code>#instruments</code>, <code>#presets</code>, <code>#sound</code>).</p>
+
   <h3>Controles de la web</h3>
   <table>
     <tr><th>Control</th><th>Qué hace</th></tr>
     <tr><td>Modo: Notas / Acordes</td><td><strong>Notas</strong>: una nota a la vez (YIN), más rápido y fiable. <strong>Acordes</strong>: varias notas a la vez (análisis espectral), con unos 150–300 ms más de retraso.</td></tr>
     <tr><td>Salida: Synth / Guitarra / Ambos</td><td>Qué llega a las salidas del Pisound. Son conexiones de JACK, sin retraso añadido.</td></tr>
+    <tr><td>Transposición, Volumen, Reverb</td><td>Siempre visibles. La transposición va en semitonos y octavas; volumen y reverb son los controles MIDI del synth.</td></tr>
     <tr><td>Instrumento</td><td>Motor de sonido (FluidSynth o sfizz), banco de sonidos y lista de instrumentos con buscador. Ver <a href="#motores">Motores de sonido</a>.</td></tr>
-    <tr><td>Sonido</td><td>Transposición (semitonos y octavas), volumen, velocity, reverb, tamaño de sala, chorus, seguimiento de bends y su rango.</td></tr>
     <tr><td>Presets</td><td>Guarda y carga combinaciones de instrumento, modo, transposición, efectos y bends. Vienen 74 de fábrica agrupados por familia (teclas, guitarras, bajos, cuerdas, metales, saxos, vientos, synths…), con buscador. Ver <a href="#presets">Presets</a>.</td></tr>
-    <tr><td>Detección</td><td>Puerta de ruido, estabilidad, detección de púa, confianza, sensibilidad de acordes, ventana de acordes y afinación de referencia.</td></tr>
+    <tr><td>Sonido</td><td>Ajuste fino: velocity, tamaño de sala, chorus, seguimiento de bends y su rango.</td></tr>
+    <tr><td>Detección</td><td>Aquí está la <strong>nota en grande</strong> con la aguja de afinación y el medidor de entrada, como herramienta para ajustar. Puerta de ruido, calibración, estabilidad, detección de púa, confianza, sensibilidad de acordes, ventana de acordes y afinación de referencia.</td></tr>
     <tr><td>Pánico</td><td>Apaga todas las notas si alguna se queda colgada.</td></tr>
   </table>
 
