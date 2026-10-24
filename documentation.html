@@ -168,10 +168,18 @@
     <tr><td>Salida: Synth / Guitarra / Ambos</td><td>Qué llega a las salidas del Pisound. Son conexiones de JACK, sin retraso añadido.</td></tr>
     <tr><td>Instrumento</td><td>Motor de sonido (FluidSynth o sfizz), banco de sonidos y lista de instrumentos con buscador. Ver <a href="#motores">Motores de sonido</a>.</td></tr>
     <tr><td>Sonido</td><td>Transposición (semitonos y octavas), volumen, velocity, reverb, tamaño de sala, chorus, seguimiento de bends y su rango.</td></tr>
-    <tr><td>Presets</td><td>Guarda y carga combinaciones de instrumento, modo, transposición, efectos y bends. Vienen 8 de ejemplo.</td></tr>
+    <tr><td>Presets</td><td>Guarda y carga combinaciones de instrumento, modo, transposición, efectos y bends. Vienen 74 de fábrica agrupados por familia (teclas, guitarras, bajos, cuerdas, metales, saxos, vientos, synths…), con buscador. Ver <a href="#presets">Presets</a>.</td></tr>
     <tr><td>Detección</td><td>Puerta de ruido, estabilidad, detección de púa, confianza, sensibilidad de acordes, ventana de acordes y afinación de referencia.</td></tr>
     <tr><td>Pánico</td><td>Apaga todas las notas si alguna se queda colgada.</td></tr>
   </table>
+
+  <h3 id="presets">Presets</h3>
+  <p>Cada preset fija el instrumento, la transposición (los bajos van una octava abajo; flauta, violín u oboe una arriba), la reverb, el chorus y el modo. También indica si <strong>sigue bends y vibrato</strong>, según el instrumento real:</p>
+  <table>
+    <tr><th>Siguen bends y vibrato</th><th>No los siguen</th></tr>
+    <tr><td>Violín, viola, chelo, contrabajo, fiddle, metales, saxos, oboe, clarinete, fagot, gaita, flautas, ocarina, silbido, voz sintetizada, guitarras, sitar, armónica, bajos eléctricos y fretless, leads de synth</td><td>Pianos, órganos, clavecín, clavinet, acordeón, percusión melódica (vibráfono, marimba, celesta…), arpa, banjo, koto, pizzicato, bajo slap y sintetizado</td></tr>
+  </table>
+  <p>Los presets de pads, coros, cuerdas de ensamble, sección de metales y órgano de iglesia usan el modo <strong>Acordes</strong>, donde los bends no se siguen. Puedes cambiar cualquier ajuste y guardar el tuyo con otro nombre. Los presets de fábrica nuevos se añaden solos a los que ya tienes, sin tocar los tuyos ni recrear los que borraste.</p>
 
   <h3 id="motores">Motores de sonido</h3>
   <p>En la pestaña <strong>Instrumento</strong> eliges con qué motor suena la guitarra. El cambio es en caliente: la app para el motor anterior y arranca el nuevo (unos segundos; sale un aviso amarillo de «Cargando sonido…»). Mientras tanto no suena nada. Si el nuevo no arranca, la app vuelve al anterior y lo avisa.</p>
@@ -233,6 +241,10 @@ JOBS=3 bash app/tools/install-sfizz.sh    # más rápido, usa más RAM</code></p
 <pre><code>python3 app/tools/record.py notas.wav --seconds 20
 python3 app/tools/record.py acordes.wav --seconds 30 --port system:capture_1</code></pre>
   <p>Graba la entrada de JACK a un WAV mono. Puede usarse con la app en marcha. Muestra el nivel de pico mientras graba. Opciones: <code>--seconds</code> (por defecto 20) y <code>--port</code>.</p>
+
+  <h3>tools/diagnose.sh: diagnóstico de audio de la Pi</h3>
+<pre><code>bash app/tools/diagnose.sh</code></pre>
+  <p>Solo lee información, no cambia nada. Muestra temperatura, subtensión (<code>vcgencmd get_throttled</code>), frecuencia y gobernador de la CPU, carga, procesos que más gastan, configuración de JACK y servicios de audio activos. Úsalo, con la app funcionando y tocando, cuando haya cortes o ruidos.</p>
 
   <h3>tools/analyze.py: probar el detector con un WAV</h3>
 <pre><code>python3 app/tools/analyze.py notas.wav

@@ -160,6 +160,10 @@ function renderStatus() {
   if (s.xruns_recent) parts.push(`⚠ ${s.xruns_recent} cortes en 10 s`);
   else if (s.xruns) parts.push(`${s.xruns} cortes en total`);
   $("#status-text").textContent = parts.join(" · ");
+  const advice = $("#advice");
+  advice.textContent = s.advice ? `⚠ ${s.advice}` : "";
+  advice.classList.toggle("gone", !s.advice);
+  if (s.backend_log) $("#engine-log").textContent = s.backend_log.length ? s.backend_log.join("\n") : "(vacío)";
   $("#status-text").title = `Buffer JACK: ${s.buffer || "?"} muestras · cortes (xruns): ${s.xruns || 0}` +
     (s.xruns ? ` · el peor, ${s.worst_xrun_ms} ms` : "");
   $("#footer").textContent = `Entrada ${s.capture_port || "?"} · ${s.engine_label || "sin motor"}` +
@@ -407,24 +411,42 @@ function describePreset(p) {
   if (engine && engine.gm && p.sf2) parts.push(soundName(engine, p.sf2));
   if (p.mode) parts.push(p.mode === "poly" ? "acordes" : "notas");
   if (p.transpose) parts.push(`${p.transpose > 0 ? "+" : ""}${p.transpose} st`);
-  if (p.bend_enabled) parts.push("bends");
+  if (p.bend_enabled) parts.push("bends y vibrato");
   return parts.join(" · ");
 }
 
 function renderPresets() {
   const list = $("#presets");
   list.innerHTML = "";
-  const names = Object.keys(state.presets).sort((a, b) => a.localeCompare(b, "es"));
+  const q = normalize(($("#preset-search").value || "").trim());
+  const names = Object.keys(state.presets)
+    .filter((n) => !q || normalize(`${n} ${describePreset(state.presets[n])}`).includes(q));
+  // Los que no tienen grupo ("Grupo · Nombre") son del usuario y van primero
+  const groupOf = (n) => (n.includes(" · ") ? n.split(" · ")[0] : "Mis presets");
+  names.sort((a, b) => {
+    const ga = groupOf(a), gb = groupOf(b);
+    if (ga !== gb) return ga === "Mis presets" ? -1 : gb === "Mis presets" ? 1 : ga.localeCompare(gb, "es");
+    return a.localeCompare(b, "es");
+  });
   if (!names.length) {
-    list.innerHTML = `<li class="muted">No hay presets guardados.</li>`;
+    list.innerHTML = `<li class="muted">${q ? "Ningún preset coincide." : "No hay presets guardados."}</li>`;
     return;
   }
+  let lastGroup = null;
   for (const name of names) {
+    const group = groupOf(name);
+    if (group !== lastGroup) {
+      const h = document.createElement("li");
+      h.className = "preset-group";
+      h.textContent = group;
+      list.appendChild(h);
+      lastGroup = group;
+    }
     const li = document.createElement("li");
     const info = document.createElement("div");
     info.className = "info";
     info.innerHTML = `<div></div><div></div>`;
-    info.children[0].textContent = name;
+    info.children[0].textContent = name.includes(" · ") ? name.split(" · ").slice(1).join(" · ") : name;
     info.children[1].textContent = describePreset(state.presets[name]);
 
     const load = document.createElement("button");
@@ -496,6 +518,8 @@ function setup() {
     if (engine && e.target.value) setValues({ [engine.setting]: e.target.value });
   };
   $("#rescan").onclick = () => send({ type: "library.rescan" });
+
+  $("#preset-search").addEventListener("input", renderPresets);
 
   $("#bend").onchange = (e) => setValues({ bend_enabled: e.target.checked });
 

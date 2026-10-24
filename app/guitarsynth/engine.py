@@ -444,7 +444,21 @@ class Engine:
             "cpu_load": self._cpu_load(),
             "buffer": getattr(self, "blocksize", None),
             "effects": self.effects,
+            "advice": self._advice(),
+            "backend_log": list(self.backend.log)[-12:] if self.backend else [],
         }
+
+    def _advice(self):
+        """Avisa de ajustes de JACK que dejan muy poco margen en una Raspberry Pi."""
+        rate = getattr(self, "samplerate", 0)
+        block = getattr(self, "blocksize", 0)
+        if not rate or not block:
+            return None
+        period_ms = block / rate * 1000
+        if period_ms < 4.0:
+            return (f"JACK trabaja a {rate / 1000:g} kHz con buffer {block} ({period_ms:.1f} ms por "
+                    f"ciclo): muy justo para esta Pi. Prueba 48 kHz con buffer 256 (5.3 ms).")
+        return None
 
     def _cpu_load(self):
         try:

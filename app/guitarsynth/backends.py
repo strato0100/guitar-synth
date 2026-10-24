@@ -12,6 +12,7 @@ Cambiar de motor o de archivo de sonido es parar un proceso y arrancar otro.
 import logging
 import os
 import re
+from collections import deque
 import shutil
 import subprocess
 import threading
@@ -39,6 +40,7 @@ class Backend:
         self.sound = None
         self.process = None
         self.lock = threading.Lock()
+        self.log = deque(maxlen=40)     # últimas líneas que ha escrito el motor
 
     @classmethod
     def available(cls):
@@ -68,16 +70,18 @@ class Backend:
         log.info("Arrancando: %s", " ".join(cmd))
         self.sound = sound
         self.process = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE, text=True, bufsize=1)
-        threading.Thread(target=self._log_stderr, args=(self.process,), daemon=True).start()
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace")
+        threading.Thread(target=self._read_output, args=(self.process,), daemon=True).start()
 
         deadline = time.monotonic() + self.load_timeout
         while time.monotonic() < deadline:
             if not self.running:
                 self.process = None
+                time.sleep(0.2)     # dar tiempo a recoger sus últimas líneas
+                reason = self.last_message()
                 raise RuntimeError(f"{self.label} terminó al arrancar con "
-                                   f"{os.path.basename(sound)} (ejecuta con --verbose para ver el motivo)")
+                                   f"{os.path.basename(sound)}" + (f": {reason}" if reason else ""))
             ports = self.find_ports(client)
             if ports:
                 return ports
@@ -98,11 +102,17 @@ class Backend:
         audio = sorted(audio, key=lambda p: p.name)[:2]
         return midi[0].name, [p.name for p in audio]
 
-    def _log_stderr(self, process):
-        for line in process.stderr:
-            line = line.strip()
+    def _read_output(self, process):
+        """Recoge lo que escribe el motor (salida y errores) para poder mostrarlo."""
+        for line in process.stdout:
+            line = line.strip().lstrip("> ").strip()
             if line:
+                self.log.append(line)
                 log.info("%s: %s", self.id, line)
+
+    def last_message(self):
+        lines = [l for l in self.log if l]
+        return lines[-1] if lines else ""
 
     def command(self, text):
         """Envía un comando al shell del proceso (si lo tiene)."""

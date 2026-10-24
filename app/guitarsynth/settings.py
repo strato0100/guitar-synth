@@ -63,7 +63,8 @@ DETECTION_KEYS = ["gate_db", "onset_db", "stability", "confidence",
 PRESET_KEYS = ["mode", "engine", "sf2", "sfz", "program", "transpose", "volume", "reverb", "room",
                "chorus", "velocity", "bend_enabled", "bend_range"]
 
-DEFAULT_PRESETS = {
+# Presets de fábrica de la versión anterior: se quitan si el usuario no los tocó.
+LEGACY_PRESETS = {
     "Piano": {"engine": "fluidsynth", "program": 0, "transpose": 0, "reverb": 40, "chorus": 0},
     "Bajo eléctrico (octava abajo)": {"engine": "fluidsynth", "program": 33, "transpose": -12, "reverb": 10, "chorus": 0},
     "Cuerdas": {"engine": "fluidsynth", "program": 48, "transpose": 0, "reverb": 70, "chorus": 20, "mode": "poly"},
@@ -73,6 +74,106 @@ DEFAULT_PRESETS = {
     "Lead sintetizado": {"engine": "fluidsynth", "program": 81, "transpose": 0, "reverb": 30, "chorus": 30,
                          "bend_enabled": True},
     "Pad cálido": {"engine": "fluidsynth", "program": 89, "transpose": 0, "reverb": 90, "chorus": 50, "mode": "poly"},
+}
+
+
+def _preset(program, transpose=0, reverb=40, chorus=0, bend=False, poly=False):
+    """
+    Preset General MIDI. `bend` indica si el instrumento real sigue bends y
+    vibrato (cuerdas frotadas, vientos, voces, guitarras, leads…): con True la
+    afinación continua de la guitarra se envía al synth. En modo Acordes no hay
+    bends, así que esos presets los dejan en False.
+    """
+    return {"engine": "fluidsynth", "mode": "poly" if poly else "mono",
+            "program": program, "transpose": transpose, "reverb": reverb,
+            "chorus": chorus, "bend_enabled": bend and not poly, "bend_range": 2}
+
+
+DEFAULT_PRESETS = {
+    # --- Teclados ---
+    "Teclas · Piano de cola": _preset(0, reverb=40),
+    "Teclas · Piano brillante": _preset(1, reverb=35),
+    "Teclas · Rhodes": _preset(4, reverb=35, chorus=30),
+    "Teclas · Piano eléctrico FM": _preset(5, reverb=30, chorus=30),
+    "Teclas · Clavecín": _preset(6, reverb=30),
+    "Teclas · Clavinet": _preset(7, reverb=10),
+    "Teclas · Órgano Hammond": _preset(16, reverb=30, chorus=40),
+    "Teclas · Órgano de iglesia": _preset(19, reverb=90, poly=True),
+    "Teclas · Acordeón": _preset(21, reverb=30),
+    "Teclas · Armónica": _preset(22, reverb=20, bend=True),
+    # --- Percusión melódica ---
+    "Percusión · Vibráfono": _preset(11, reverb=50, chorus=20),
+    "Percusión · Marimba": _preset(12, reverb=35),
+    "Percusión · Celesta": _preset(8, transpose=12, reverb=50),
+    "Percusión · Caja de música": _preset(10, transpose=12, reverb=50),
+    "Percusión · Kalimba": _preset(108, reverb=40),
+    # --- Guitarras y cuerdas pulsadas (siguen bends) ---
+    "Guitarra · Española (nylon)": _preset(24, reverb=30, bend=True),
+    "Guitarra · Acústica (acero)": _preset(25, reverb=30, bend=True),
+    "Guitarra · Eléctrica jazz": _preset(26, reverb=35, chorus=25, bend=True),
+    "Guitarra · Eléctrica limpia": _preset(27, reverb=30, chorus=30, bend=True),
+    "Guitarra · Overdrive": _preset(29, reverb=20, bend=True),
+    "Guitarra · Distorsión": _preset(30, reverb=20, bend=True),
+    "Cuerda pulsada · Sitar": _preset(104, reverb=40, bend=True),
+    "Cuerda pulsada · Banjo": _preset(105, reverb=20),
+    "Cuerda pulsada · Koto": _preset(107, reverb=40),
+    "Cuerda pulsada · Arpa": _preset(46, reverb=60),
+    # --- Bajos (una octava abajo) ---
+    "Bajo · Eléctrico (dedos)": _preset(33, transpose=-12, reverb=10, bend=True),
+    "Bajo · Eléctrico (púa)": _preset(34, transpose=-12, reverb=10, bend=True),
+    "Bajo · Fretless": _preset(35, transpose=-12, reverb=15, bend=True),
+    "Bajo · Slap": _preset(36, transpose=-12, reverb=10),
+    "Bajo · Contrabajo acústico": _preset(32, transpose=-12, reverb=20, bend=True),
+    "Bajo · Sintetizado": _preset(38, transpose=-12, reverb=10),
+    # --- Cuerdas frotadas (vibrato y bends) ---
+    "Cuerdas · Violín": _preset(40, transpose=12, reverb=50, bend=True),
+    "Cuerdas · Viola": _preset(41, transpose=12, reverb=50, bend=True),
+    "Cuerdas · Violonchelo": _preset(42, reverb=50, bend=True),
+    "Cuerdas · Contrabajo de orquesta": _preset(43, transpose=-12, reverb=50, bend=True),
+    "Cuerdas · Violín folk (fiddle)": _preset(110, transpose=12, reverb=35, bend=True),
+    "Cuerdas · Pizzicato": _preset(45, reverb=45),
+    "Cuerdas · Ensamble": _preset(48, reverb=70, chorus=20, poly=True),
+    "Cuerdas · Ensamble sintetizado": _preset(50, reverb=60, chorus=30, poly=True),
+    # --- Voces ---
+    "Voces · Coro «Aah»": _preset(52, reverb=70, poly=True),
+    "Voces · «Ooh»": _preset(53, reverb=70, poly=True),
+    "Voces · Voz sintetizada": _preset(54, reverb=50, bend=True),
+    # --- Metales ---
+    "Metales · Trompeta": _preset(56, reverb=40, bend=True),
+    "Metales · Trompeta con sordina": _preset(59, reverb=35, bend=True),
+    "Metales · Trombón": _preset(57, reverb=40, bend=True),
+    "Metales · Corno francés": _preset(60, reverb=60, bend=True),
+    "Metales · Tuba": _preset(58, transpose=-12, reverb=40, bend=True),
+    "Metales · Sección": _preset(61, reverb=40, poly=True),
+    "Metales · Sintetizados": _preset(62, reverb=40, chorus=20, poly=True),
+    # --- Saxos y lengüetas ---
+    "Saxos · Soprano": _preset(64, reverb=40, bend=True),
+    "Saxos · Alto": _preset(65, reverb=40, bend=True),
+    "Saxos · Tenor": _preset(66, reverb=40, bend=True),
+    "Saxos · Barítono": _preset(67, transpose=-12, reverb=40, bend=True),
+    "Lengüetas · Oboe": _preset(68, transpose=12, reverb=50, bend=True),
+    "Lengüetas · Clarinete": _preset(71, transpose=12, reverb=45, bend=True),
+    "Lengüetas · Fagot": _preset(70, transpose=-12, reverb=45, bend=True),
+    "Lengüetas · Gaita": _preset(109, reverb=25, bend=True),
+    # --- Flautas y vientos ---
+    "Vientos · Flauta": _preset(73, transpose=12, reverb=60, bend=True),
+    "Vientos · Flautín": _preset(72, transpose=12, reverb=55, bend=True),
+    "Vientos · Flauta dulce": _preset(74, transpose=12, reverb=50, bend=True),
+    "Vientos · Flauta de pan": _preset(75, transpose=12, reverb=60, bend=True),
+    "Vientos · Shakuhachi": _preset(77, reverb=60, bend=True),
+    "Vientos · Ocarina": _preset(79, transpose=12, reverb=50, bend=True),
+    "Vientos · Silbido": _preset(78, transpose=12, reverb=40, bend=True),
+    # --- Sintetizadores ---
+    "Synth · Lead cuadrada": _preset(80, reverb=30, chorus=30, bend=True),
+    "Synth · Lead diente de sierra": _preset(81, reverb=30, chorus=30, bend=True),
+    "Synth · Lead calíope": _preset(82, reverb=35, bend=True),
+    "Synth · Lead charang": _preset(84, reverb=30, bend=True),
+    "Synth · Lead quintas": _preset(86, reverb=30, chorus=20, bend=True),
+    "Synth · Pad new age": _preset(88, reverb=85, chorus=40, poly=True),
+    "Synth · Pad cálido": _preset(89, reverb=90, chorus=50, poly=True),
+    "Synth · Pad coro": _preset(91, reverb=85, chorus=40, poly=True),
+    "Synth · Pad halo": _preset(94, reverb=90, chorus=40, poly=True),
+    "Synth · Atmósfera": _preset(99, reverb=85, chorus=30, poly=True),
 }
 
 
@@ -108,10 +209,33 @@ class SettingsStore:
                 except (ValueError, TypeError):
                     pass
 
-        self.presets = self._load(self.presets_path, None)
-        if self.presets is None:
-            self.presets = {name: dict(values) for name, values in DEFAULT_PRESETS.items()}
+        self.seen_path = os.path.join(data_dir, "presets_offered.json")
+        self.presets = self._load(self.presets_path, {})
+        self._merge_default_presets()
+
+    def _merge_default_presets(self):
+        """
+        Añade los presets de fábrica que aún no se han ofrecido a este usuario,
+        sin tocar los suyos ni volver a crear los que borró. La primera vez
+        quita los presets de fábrica antiguos si no se modificaron.
+        """
+        offered = self._load(self.seen_path, None)
+        changed = False
+        if offered is None:
+            offered = []
+            for name, values in LEGACY_PRESETS.items():
+                if self.presets.get(name) == values:
+                    del self.presets[name]
+                    changed = True
+        for name, values in DEFAULT_PRESETS.items():
+            if name not in offered:
+                offered.append(name)
+                if name not in self.presets:
+                    self.presets[name] = dict(values)
+                changed = True
+        if changed or not os.path.exists(self.seen_path):
             self._save(self.presets_path, self.presets)
+            self._save(self.seen_path, offered)
 
     @staticmethod
     def _load(path, default):

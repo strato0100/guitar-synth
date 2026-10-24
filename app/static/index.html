@@ -16,6 +16,7 @@
   </div>
   <button id="panic" class="danger" title="Apagar todas las notas">Pánico</button>
 </header>
+<div id="advice" class="advice gone"></div>
 
 <main>
   <!-- Lo que se está tocando -->
@@ -82,6 +83,10 @@
     <input id="search" type="search" placeholder="Buscar: sax, violín, organ, pad…" autocomplete="off">
     <div id="categories" class="chips"></div>
     <div id="instruments" class="instrument-grid"></div>
+    <details class="engine-log">
+      <summary>Registro del motor de sonido</summary>
+      <pre id="engine-log">(vacío)</pre>
+    </details>
   </section>
 
   <!-- Sonido -->
@@ -115,6 +120,7 @@
       <button type="submit" class="primary">Guardar actual</button>
     </form>
     <p class="muted small">Un preset guarda instrumento, modo, transposición, volumen, efectos, velocity y bends.</p>
+    <input id="preset-search" type="search" placeholder="Buscar preset: violín, bajo, pad…" autocomplete="off">
     <ul id="presets" class="preset-list"></ul>
   </section>
 
