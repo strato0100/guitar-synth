@@ -210,8 +210,26 @@ def _pretty(path):
     return name.replace("_", " ")
 
 
+_INCLUDE = re.compile(r'^\s*#include\s+"([^"]+)"', re.IGNORECASE | re.MULTILINE)
+
+
+def _included_sfz(path):
+    """Archivos que este .sfz incluye con #include (se resuelven junto a él)."""
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            text = f.read(1_000_000)
+    except OSError:
+        return set()
+    here = os.path.dirname(path)
+    return {os.path.realpath(os.path.join(here, ref.replace("\\", "/")))
+            for ref in _INCLUDE.findall(text)}
+
+
 def scan_library(dirs):
-    """Busca archivos .sf2 y .sfz en las carpetas dadas (y subcarpetas)."""
+    """
+    Busca archivos .sf2 y .sfz en las carpetas dadas (y subcarpetas).
+    Los .sfz que sólo son piezas incluidas por otro .sfz no se listan.
+    """
     found = {cls.kind: {} for cls in BACKENDS.values()}
     for base in dirs:
         base = os.path.expanduser(base)
@@ -225,12 +243,22 @@ def scan_library(dirs):
                 ext = os.path.splitext(name)[1].lower().lstrip(".")
                 if ext not in found:
                     continue
-                path = os.path.realpath(os.path.join(root, name))
+                full = os.path.join(root, name)
+                path = os.path.realpath(full)
                 if path in found[ext] or not os.path.isfile(path):
                     continue
                 size = os.path.getsize(path) / 1e6 if ext == "sf2" else None
+                rel = os.path.relpath(full, base).split(os.sep)
+                folder = rel[0] if len(rel) > 1 else os.path.basename(base.rstrip(os.sep))
                 found[ext][path] = {"id": path, "name": _pretty(path),
                                     "size_mb": None if size is None else round(size, 1),
-                                    "folder": os.path.basename(os.path.dirname(path))}
-    return {kind: sorted(items.values(), key=lambda s: s["name"].lower())
+                                    "folder": folder}
+
+    included = set()
+    for path in found["sfz"]:
+        included |= _included_sfz(path)
+    for path in included:
+        found["sfz"].pop(path, None)
+
+    return {kind: sorted(items.values(), key=lambda s: (s["folder"].lower(), s["name"].lower()))
             for kind, items in found.items()}

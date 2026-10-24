@@ -1,0 +1,112 @@
+// --------------------------------------
+// SFZ format v2 with ARIA extensions
+// --------------------------------------
+// Headroom Bundle : Intimate Piano
+// by Bengt Nilsson
+// --------------------------------------
+// converted by kinwie
+// --------------------------------------
+
+
+//midi cc
+#define $M_WID 40
+#define $DAMPER 67
+#define $RELEASE 72
+#define $VELTRACK 73
+#define $C_VOL 74
+#define $C_PAN 75
+#define $C_WID 76
+#define $D_VOL 77
+#define $D_PAN 78
+#define $D_WID 79
+
+//file extension
+#define $EXT flac
+
+
+///////////////////////////////////////////////////////////////////////////
+<control>
+default_path=Samples/
+
+label_cc7=Master Vol
+label_cc10=Master Pan
+label_cc$M_WID=-
+label_cc$DAMPER=Hi-Damp
+label_cc$RELEASE=Release
+label_cc$VELTRACK=Veltrack
+label_cc$C_VOL=Close Vol
+label_cc$C_PAN=Close Pan
+label_cc$C_WID=Close Width
+label_cc$D_VOL=Decca Vol
+label_cc$D_PAN=Decca Pan
+label_cc$D_WID=Decca Width
+
+set_cc7=100
+set_hdcc10=0.5
+set_hdcc$DAMPER=0
+set_hdcc$RELEASE=0.4
+set_hdcc$VELTRACK=0.75
+set_hdcc$C_VOL=0.5
+set_hdcc$C_PAN=0.5
+set_hdcc$C_WID=0.5
+set_hdcc$D_VOL=0.5
+set_hdcc$D_PAN=0.5
+set_hdcc$D_WID=0.5
+
+
+//*********************************************************************
+<global>
+amplitude_oncc7=100
+amplitude_curvecc7=4
+pan_oncc10=100
+pan_curvecc10=1
+amp_veltrack=0
+amp_veltrack_oncc$VELTRACK=100
+ampeg_release_oncc$RELEASE=2
+ampeg_release_curvecc$DAMPER=7
+note_polyphony=1
+off_time=0.5
+cutoff=40
+fil_veltrack=11000
+group_volume=13.3
+#define $VEL LEVEL1
+
+
+//===========================================
+<group>
+group=1
+locc$C_VOL=1
+amplitude_oncc$C_VOL=100
+pan_oncc$C_PAN=100
+pan_curvecc$C_PAN=1
+width_oncc$C_WID=100
+width_curvecc$C_WID=8
+#include "Data/close.txt"
+#include "Data/region.txt"
+
+//===========================================
+<group>
+group=2
+locc$D_VOL=1
+amplitude_oncc$D_VOL=100
+pan_oncc$D_PAN=100
+pan_curvecc$D_PAN=1
+width_oncc$D_WID=100
+width_curvecc$D_WID=8
+#include "Data/decca.txt"
+#include "Data/region.txt"
+
+//--------------------------------------
+
+<curve>
+curve_index=7
+v000=1
+v001=0
+v127=0
+
+<curve>
+curve_index=8
+v000=-1
+v063=0
+v064=0
+v127=2

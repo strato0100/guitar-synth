@@ -1,0 +1,217 @@
+// --------------------------------------
+// SFZ format v2 with ARIA extensions
+// --------------------------------------
+// Headroom Piano
+// by Bengt Nilsson
+// --------------------------------------
+// converted by kinwie
+// --------------------------------------
+
+
+//midi cc
+#define $M_WID 40
+#define $DAMPER 67
+#define $RELEASE 72
+#define $VELTRACK 73
+#define $C_VOL 74
+#define $C_PAN 75
+#define $C_WID 76
+#define $D_VOL 77
+#define $D_PAN 78
+#define $D_WID 79
+//---------------------------
+#define $C_LO_FREQ 80
+#define $C_LO_GAIN 86
+#define $C_LO_BW 92
+#define $C_MI_FREQ 81
+#define $C_MI_GAIN 87
+#define $C_MI_BW 93
+#define $C_HI_FREQ 82
+#define $C_HI_GAIN 88
+#define $C_HI_BW 94
+//---------------------------
+#define $D_LO_FREQ 83
+#define $D_LO_GAIN 89
+#define $D_LO_BW 95
+#define $D_MI_FREQ 84
+#define $D_MI_GAIN 90
+#define $D_MI_BW 96
+#define $D_HI_FREQ 85
+#define $D_HI_GAIN 91
+#define $D_HI_BW 97
+
+//velocity range
+#define $LOVEL1 1
+#define $HIVEL1 59
+//---
+#define $LOVEL2 60
+#define $HIVEL2 89
+//---
+#define $LOVEL3 90
+#define $HIVEL3 105
+//---
+#define $LOVEL4 106
+#define $HIVEL4 119
+//---
+#define $LOVEL5 120
+#define $HIVEL5 127
+
+//velocity layer volume
+#define $VOL_VEL1 13.3
+#define $VOL_VEL2 6.2
+#define $VOL_VEL3 3.3
+#define $VOL_VEL4 1.1
+#define $VOL_VEL5 0
+
+//file extension
+#define $EXT flac
+
+
+///////////////////////////////////////////////////////////////////////////
+<control>
+default_path=Samples/
+
+label_cc7=Master Vol
+label_cc10=Master Pan
+label_cc$M_WID=-
+label_cc$DAMPER=Hi-Damp
+label_cc$RELEASE=Release
+label_cc$VELTRACK=Veltrack
+label_cc$C_VOL=Close Vol
+label_cc$C_PAN=Close Pan
+label_cc$C_WID=Close Width
+label_cc$D_VOL=Decca Vol
+label_cc$D_PAN=Decca Pan
+label_cc$D_WID=Decca Width
+label_cc$C_LO_FREQ=C-FreqLow
+label_cc$C_LO_GAIN=C-GainLow
+label_cc$C_LO_BW=C-BwLow
+label_cc$C_MI_FREQ=C-FreqMid
+label_cc$C_MI_GAIN=C-GainMid
+label_cc$C_MI_BW=C-BwMid
+label_cc$C_HI_FREQ=C-FreqHi
+label_cc$C_HI_GAIN=C-GainHi
+label_cc$C_HI_BW=C-BwHi
+label_cc$D_LO_FREQ=D-FreqLow
+label_cc$D_LO_GAIN=D-GainLow
+label_cc$D_LO_BW=D-BwLow
+label_cc$D_MI_FREQ=D-FreqMid
+label_cc$D_MI_GAIN=D-GainMid
+label_cc$D_MI_BW=D-BwMid
+label_cc$D_HI_FREQ=D-FreqHi
+label_cc$D_HI_GAIN=D-GainHi
+label_cc$D_HI_BW=D-BwHi
+
+set_cc7=100
+set_hdcc10=0.5
+set_hdcc$DAMPER=0
+set_hdcc$RELEASE=0.4
+set_hdcc$VELTRACK=1
+set_hdcc$C_VOL=1
+set_hdcc$C_PAN=0.5
+set_hdcc$C_WID=0.5
+set_hdcc$D_VOL=0.5
+set_hdcc$D_PAN=0.5
+set_hdcc$D_WID=0.5
+set_hdcc$C_LO_FREQ=0
+set_hdcc$C_LO_GAIN=0.5
+set_hdcc$C_LO_BW=0.75
+set_hdcc$C_MI_FREQ=0.342
+set_hdcc$C_MI_GAIN=0.5
+set_hdcc$C_MI_BW=0.75
+set_hdcc$C_HI_FREQ=0.555
+set_hdcc$C_HI_GAIN=0.5
+set_hdcc$C_HI_BW=0.75
+set_hdcc$D_LO_FREQ=0
+set_hdcc$D_LO_GAIN=0.5
+set_hdcc$D_LO_BW=0.75
+set_hdcc$D_MI_FREQ=0.342
+set_hdcc$D_MI_GAIN=0.5
+set_hdcc$D_MI_BW=0.75
+set_hdcc$D_HI_FREQ=0.555
+set_hdcc$D_HI_GAIN=0.5
+set_hdcc$D_HI_BW=0.75
+
+
+//*********************************************************************
+<global>
+amplitude_oncc7=100
+amplitude_curvecc7=4
+pan_oncc10=100
+pan_curvecc10=1
+amp_veltrack=0
+amp_veltrack_oncc$VELTRACK=100
+ampeg_release_oncc$RELEASE=2
+ampeg_release_curvecc$DAMPER=7
+note_polyphony=1
+off_time=0.5
+eq1_freq=20
+eq2_freq=200
+eq3_freq=2000
+eq1_bw=0
+eq2_bw=0
+eq3_bw=0
+
+
+//===========================================
+<master>
+group=1
+locc$C_VOL=1
+amplitude_oncc$C_VOL=100
+pan_oncc$C_PAN=100
+pan_curvecc$C_PAN=1
+width_oncc$C_WID=100
+width_curvecc$C_WID=8
+eq1_freq_oncc$C_LO_FREQ=380
+eq1_gain_oncc$C_LO_GAIN=12
+eq1_gain_curvecc$C_LO_GAIN=1
+eq1_bw_oncc$C_LO_BW=4
+eq2_freq_oncc$C_MI_FREQ=3800
+eq2_gain_oncc$C_MI_GAIN=12
+eq2_gain_curvecc$C_MI_GAIN=1
+eq2_bw_oncc$C_MI_BW=4
+eq3_freq_oncc$C_HI_FREQ=18000
+eq3_gain_oncc$C_HI_GAIN=12
+eq3_gain_curvecc$C_HI_GAIN=1
+eq3_bw_oncc$C_HI_BW=4
+#include "Data/close.txt"
+#include "Data/group.txt"
+
+//===========================================
+<master>
+group=2
+locc$D_VOL=1
+amplitude_oncc$D_VOL=100
+pan_oncc$D_PAN=100
+pan_curvecc$D_PAN=1
+width_oncc$D_WID=100
+width_curvecc$D_WID=8
+eq1_freq_oncc$D_LO_FREQ=380
+eq1_gain_oncc$D_LO_GAIN=12
+eq1_gain_curvecc$D_LO_GAIN=1
+eq1_bw_oncc$D_LO_BW=4
+eq2_freq_oncc$D_MI_FREQ=3800
+eq2_gain_oncc$D_MI_GAIN=12
+eq2_gain_curvecc$D_MI_GAIN=1
+eq2_bw_oncc$D_MI_BW=4
+eq3_freq_oncc$D_HI_FREQ=18000
+eq3_gain_oncc$D_HI_GAIN=12
+eq3_gain_curvecc$D_HI_GAIN=1
+eq3_bw_oncc$D_HI_BW=4
+#include "Data/decca.txt"
+#include "Data/group.txt"
+
+//--------------------------------------
+
+<curve>
+curve_index=7
+v000=1
+v001=0
+v127=0
+
+<curve>
+curve_index=8
+v000=-1
+v063=0
+v064=0
+v127=2

@@ -180,6 +180,7 @@
     <tr><td><strong>FluidSynth</strong></td><td><code>.sf2</code> (SoundFont)</td><td>Los 128 instrumentos General MIDI del banco elegido, con reverb y chorus.</td><td>Ya instalado en Patchbox OS.</td></tr>
     <tr><td><strong>sfizz (SFZ)</strong></td><td><code>.sfz</code></td><td>Un archivo = un instrumento completo (piano, cuerdas, guitarra…), normalmente con muestras de más calidad.</td><td>Programa <code>sfizz_jack</code>. Si no está instalado, el botón aparece desactivado con la explicación.</td></tr>
   </table>
+  <p><strong>Sonidos incluidos de ejemplo:</strong> en <code>app/sounds/</code> hay GeneralUser GS (SoundFont), un piano de cola, una flauta y un chelo en SFZ. Sus fuentes y licencias están en <code>app/sounds/README.md</code>. Para llevarlos a la Pi: <code>rsync -av app/sounds/ patch@&lt;ip-de-la-pi&gt;:~/guitar-synth/app/sounds/</code>.</p>
   <p><strong>Dónde poner los archivos:</strong> copia los <code>.sf2</code> y las carpetas de <code>.sfz</code> en <code>app/sounds/</code> (se crea al arrancar) o en cualquier carpeta que pases con <code>--sounds-dir</code>. Pulsa <strong>↻</strong> junto al banco para que la web los detecte sin reiniciar. Los archivos de <code>app/sounds/</code> no se suben a git.</p>
   <div class="note warn">
     <ul>

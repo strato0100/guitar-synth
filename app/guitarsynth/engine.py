@@ -202,9 +202,10 @@ class Engine:
     def _default_sound(self, cls):
         sounds = self.library[cls.kind]
         if cls.id == "fluidsynth":
-            for sound in sounds:
-                if "fluidr3_gm" in sound["id"].lower():
-                    return sound["id"]
+            for preferred in ("generaluser", "fluidr3_gm"):
+                for sound in sounds:
+                    if preferred in sound["id"].lower():
+                        return sound["id"]
         return sounds[0]["id"] if sounds else None
 
     def _choose(self, settings):
