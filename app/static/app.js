@@ -156,7 +156,11 @@ function renderStatus() {
   if (!s.synth_running && !s.loading) parts.push("⚠ Motor de sonido detenido");
   parts.push(s.modep ? "MODEP activo" : "Guitarra limpia");
   if (s.samplerate) parts.push(`${s.samplerate / 1000} kHz`);
+  if (s.cpu_load != null) parts.push(`CPU ${Math.round(s.cpu_load)}%`);
+  if (s.xruns) parts.push(`⚠ ${s.xruns} cortes de audio`);
   $("#status-text").textContent = parts.join(" · ");
+  $("#status-text").title = `Buffer JACK: ${s.buffer || "?"} muestras · cortes (xruns): ${s.xruns || 0}` +
+    (s.xruns ? ` · el peor, ${s.worst_xrun_ms} ms` : "");
   $("#footer").textContent = `Entrada ${s.capture_port || "?"} · ${s.engine_label || "sin motor"}` +
     (s.sound ? ` · ${s.sound}` : "");
 }

@@ -65,6 +65,9 @@ def parse_args():
                              "/usr/share/soundfonts")
     parser.add_argument("--gain", type=float, default=0.7,
                         help="ganancia maestra de FluidSynth (por defecto 0.7)")
+    parser.add_argument("--no-fx", action="store_true",
+                        help="desactiva la reverb y el chorus de FluidSynth (menos CPU; "
+                             "úsalo si hay cortes o ruidos en el audio)")
     parser.add_argument("--data-dir", default=os.path.join(APP_DIR, "data"),
                         help="carpeta donde se guardan ajustes y presets")
     parser.add_argument("--verbose", action="store_true",
@@ -92,7 +95,7 @@ def main():
 
     store = SettingsStore(args.data_dir)
     engine = Engine(store, capture_port=args.port, sound_dirs=sound_dirs,
-                    synth_gain=args.gain)
+                    synth_gain=args.gain, effects=not args.no_fx)
 
     print("Arrancando motor de audio (cargar el sonido tarda unos segundos)...")
     try:
@@ -104,7 +107,9 @@ def main():
     status = engine.status()
     print(f"Audio: {status['samplerate']} Hz, entrada {args.port}, "
           f"MODEP {'activo' if status['modep'] else 'inactivo'}")
-    print(f"Motor de sonido: {status['engine_label']} ({status['sound']})")
+    print(f"Motor de sonido: {status['engine_label']} ({status['sound']})"
+          f"{'' if status['effects'] else ', sin reverb ni chorus'}")
+    print(f"JACK: buffer {status['buffer']}, carga de CPU {status['cpu_load']}%")
     print(f"Interfaz web: http://{local_ip()}:{args.http_port}  (Ctrl+C para salir)")
 
     try:

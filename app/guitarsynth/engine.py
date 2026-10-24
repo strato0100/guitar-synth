@@ -40,12 +40,15 @@ MIDI_CHANNEL = 0
 
 class Engine:
     def __init__(self, store, capture_port="system:capture_1", sound_dirs=(),
-                 client_name="guitar-synth", synth_gain=0.7):
+                 client_name="guitar-synth", synth_gain=0.7, effects=True):
         self.store = store
         self.capture_port = capture_port
         self.client_name = client_name
         self.sound_dirs = list(sound_dirs)
         self.synth_gain = synth_gain
+        self.effects = effects
+        self.xruns = 0              # ciclos de audio perdidos por JACK desde el arranque
+        self.worst_xrun_ms = 0.0
         self.library = scan_library(self.sound_dirs)
 
         self.backend = None
@@ -82,10 +85,12 @@ class Engine:
         self.inport = self.client.inports.register("input")
         self.midi_out = self.client.midi_outports.register("midi_out")
         self.samplerate = self.client.samplerate
+        self.blocksize = self.client.blocksize
         self.decimator = Decimator(self.samplerate)
 
         self.client.set_process_callback(self._process)
         self.client.set_shutdown_callback(self._shutdown)
+        self.client.set_xrun_callback(self._xrun)
         self.client.activate()
 
         captures = [p.name for p in self.client.get_ports(is_audio=True, is_output=True,
@@ -147,6 +152,10 @@ class Engine:
                 # Buffer MIDI lleno: se envía en el siguiente ciclo
                 self.midi_pending.appendleft(message)
                 break
+
+    def _xrun(self, delay_us):
+        self.xruns += 1
+        self.worst_xrun_ms = max(self.worst_xrun_ms, delay_us / 1000)
 
     def _shutdown(self, status, reason):
         self.error = f"JACK se ha detenido: {reason}"
@@ -227,7 +236,7 @@ class Engine:
 
     def _launch(self, engine_id, sound):
         """Arranca un motor, lo conecta y reaplica el sonido. Sin bloqueos externos."""
-        backend = BACKENDS[engine_id](self.synth_gain)
+        backend = BACKENDS[engine_id](self.synth_gain, self.effects)
         midi_in, outputs = backend.start(self.client, self.samplerate, sound)
         self.client.connect(self.midi_out, midi_in)
         self.backend = backend
@@ -427,7 +436,18 @@ class Engine:
             "synth_running": bool(self.backend and self.backend.running),
             "loading": self.loading,
             "error": self.error,
+            "xruns": self.xruns,
+            "worst_xrun_ms": round(self.worst_xrun_ms, 1),
+            "cpu_load": self._cpu_load(),
+            "buffer": getattr(self, "blocksize", None),
+            "effects": self.effects,
         }
+
+    def _cpu_load(self):
+        try:
+            return round(self.client.cpu_load(), 1) if self.client else None
+        except jack.JackError:
+            return None
 
     def live_state(self):
         return dict(self.live, loading=self.loading)

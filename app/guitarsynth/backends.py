@@ -33,8 +33,9 @@ class Backend:
     install_hint = ""
     load_timeout = 60.0
 
-    def __init__(self, gain=0.7):
+    def __init__(self, gain=0.7, effects=True):
         self.gain = gain
+        self.effects = effects      # reverb y chorus propios del motor (cuestan CPU)
         self.sound = None
         self.process = None
         self.lock = threading.Lock()
@@ -159,9 +160,11 @@ class FluidBackend(Backend):
     install_hint = "Instálalo con: sudo apt install fluidsynth"
 
     def command_line(self, binary, samplerate, sound):
+        fx = [] if self.effects else ["-R", "0", "-C", "0"]
         return [
             binary,
             "-a", "jack", "-m", "jack",
+            *fx,
             "-o", f"audio.jack.id={self.client}",
             "-o", f"midi.jack.id={self.client}-midi",
             "-o", "audio.jack.autoconnect=0",
@@ -177,10 +180,13 @@ class FluidBackend(Backend):
 
     def start(self, client, samplerate, sound):
         ports = super().start(client, samplerate, sound)
-        self.command("chorus on")
+        if self.effects:
+            self.command("chorus on")
         return ports
 
     def set_reverb_room(self, room):
+        if not self.effects:
+            return
         self.command("reverb on")
         self.command(f"rev_setroomsize {room:.2f}")
 
