@@ -1,0 +1,5 @@
+# En Patchbox OS, jack-client y numpy ya vienen con el sistema
+# (python3-jack-client, python3-numpy). Estas son las que faltan para la web:
+fastapi
+uvicorn
+websockets

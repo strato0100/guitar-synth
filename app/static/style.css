@@ -1,0 +1,193 @@
+:root {
+  --bg: #111418;
+  --panel: #1c2128;
+  --panel-2: #252b34;
+  --border: #2d343d;
+  --fg: #e8e8e8;
+  --dim: #8b949e;
+  --green: #3ddc84;
+  --blue: #4ea1ff;
+  --yellow: #f5c542;
+  --red: #ff5c5c;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, "DejaVu Sans", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input { font: inherit; color: inherit; }
+
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .55rem .9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:active { transform: scale(.97); }
+button.primary { background: var(--blue); border-color: var(--blue); color: #08121f; font-weight: 600; }
+button.danger { background: transparent; border-color: var(--red); color: var(--red); font-weight: 600; }
+
+input[type=search], input[type=text] {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .65rem .8rem;
+  outline: none;
+}
+input:focus { border-color: var(--blue); }
+
+.muted { color: var(--dim); }
+.small { font-size: .85rem; }
+.mono { font-family: "DejaVu Sans Mono", ui-monospace, monospace; }
+
+/* --- barra superior --- */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: .8rem;
+  padding: .6rem 1rem;
+  background: rgba(17, 20, 24, .95);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+.brand { font-weight: 700; }
+.status { flex: 1; display: flex; align-items: center; gap: .45rem; color: var(--dim); font-size: .85rem; min-width: 0; }
+.status span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.dot.on { background: var(--green); }
+.dot.off { background: var(--red); }
+
+main { max-width: 900px; margin: 0 auto; padding: 1rem; padding-bottom: 3rem; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* --- panel en vivo --- */
+.live { text-align: center; }
+.live-name {
+  font-size: clamp(3.5rem, 16vw, 7rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.02em;
+  transition: color .15s;
+}
+.live-name.idle { color: var(--border); }
+.live-name.approx { color: var(--yellow); }
+.live-name.unknown { color: var(--red); }
+.live-sub { color: var(--dim); min-height: 1.4em; margin-top: .3rem; font-family: "DejaVu Sans Mono", monospace; }
+.live-instrument { margin-top: .5rem; display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap; }
+
+.cents { max-width: 360px; margin: .6rem auto 0; }
+.cents.hidden { visibility: hidden; }
+.cents-scale { display: flex; justify-content: space-between; font-size: .7rem; color: var(--dim); }
+.cents-track { position: relative; height: 10px; background: var(--panel-2); border-radius: 5px; }
+.cents-zone { position: absolute; left: 45%; width: 10%; top: 0; bottom: 0; background: rgba(61, 220, 132, .25); }
+.cents-needle {
+  position: absolute; top: -3px; width: 4px; height: 16px; margin-left: -2px;
+  left: 50%; background: var(--dim); border-radius: 2px; transition: left .08s linear;
+}
+
+.meter-row { display: flex; align-items: center; gap: .6rem; margin-top: .8rem; font-size: .8rem; }
+.meter { flex: 1; position: relative; height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; width: 0; background: var(--green); transition: width .05s linear; }
+.meter-gate { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--yellow); }
+#meter-db { width: 4.5em; text-align: right; }
+
+/* --- controles --- */
+.row-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
+.row-controls .control { flex: 1 1 220px; margin: 0; }
+
+.control { margin-bottom: 1.1rem; }
+.control > label { display: flex; justify-content: space-between; margin-bottom: .4rem; font-size: .9rem; }
+.control .value { color: var(--blue); font-family: "DejaVu Sans Mono", monospace; }
+.control small { display: block; margin-top: .3rem; }
+
+.segmented { display: flex; background: var(--panel-2); border-radius: 8px; padding: 3px; gap: 3px; }
+.segmented button { flex: 1; border: none; background: transparent; padding: .55rem .4rem; }
+.segmented button.active { background: var(--blue); color: #08121f; font-weight: 600; }
+
+input[type=range] { width: 100%; accent-color: var(--blue); height: 28px; }
+
+.stepper { display: flex; gap: .4rem; }
+.stepper button { flex: 1; padding: .55rem 0; }
+
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.toggle-row label { margin: 0; }
+.switch {
+  appearance: none; -webkit-appearance: none;
+  width: 48px; height: 28px; flex: none;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px;
+  position: relative; cursor: pointer; transition: background .15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--fg); transition: left .15s;
+}
+.switch:checked { background: var(--blue); border-color: var(--blue); }
+.switch:checked::after { left: 23px; }
+
+/* --- pestañas --- */
+.tabs { display: flex; gap: .3rem; margin-bottom: .6rem; overflow-x: auto; }
+.tabs button { flex: 1; white-space: nowrap; background: transparent; border-color: transparent; color: var(--dim); }
+.tabs button.active { color: var(--fg); border-color: var(--border); background: var(--panel); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* --- instrumentos --- */
+.chips { display: flex; gap: .4rem; overflow-x: auto; padding: .7rem 0; scrollbar-width: thin; }
+.chips button { white-space: nowrap; padding: .35rem .7rem; font-size: .85rem; border-radius: 999px; }
+.chips button.active { background: var(--blue); border-color: var(--blue); color: #08121f; }
+
+.instrument-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .5rem; }
+.instrument {
+  display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .1rem;
+  padding: .6rem .7rem;
+}
+.instrument .num { font-size: .7rem; color: var(--dim); }
+.instrument .en { font-size: .75rem; color: var(--dim); }
+.instrument.active { border-color: var(--green); background: rgba(61, 220, 132, .12); }
+.category-title { grid-column: 1 / -1; margin: .6rem 0 0; font-size: .85rem; color: var(--dim); }
+
+/* --- presets --- */
+.preset-form { display: flex; gap: .5rem; }
+.preset-form button { flex: none; }
+.preset-list { list-style: none; padding: 0; margin: 0; }
+.preset-list li {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .6rem 0; border-bottom: 1px solid var(--border);
+}
+.preset-list .info { flex: 1; min-width: 0; }
+.preset-list .info div:last-child { font-size: .8rem; color: var(--dim); }
+.preset-list button.del { background: transparent; color: var(--dim); }
+
+#detection-reset { width: 100%; }
+
+footer { text-align: center; margin-top: 1rem; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(150%);
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: .7rem 1rem; transition: transform .2s; z-index: 20; max-width: 90vw;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.error { border-color: var(--red); }
+
+@media (max-width: 520px) {
+  main { padding: .6rem; }
+  .card { padding: .8rem; }
+  .instrument-grid { grid-template-columns: 1fr 1fr; }
+}

@@ -114,8 +114,8 @@
 <body>
 <header>
   <main style="padding:0">
-    <h1>🎸 Guitar Synth · Scripts de detección</h1>
-    <p>Cómo ejecutar los scripts de la carpeta <code>scripts/</code> en una Raspberry Pi con Pisound y Patchbox OS.</p>
+    <h1>🎸 Guitar Synth · Documentación</h1>
+    <p>La app web (<code>app/</code>) y los scripts de prueba (<code>scripts/</code>) en una Raspberry Pi con Pisound y Patchbox OS.</p>
   </main>
 </header>
 
@@ -123,7 +123,9 @@
   <nav>
     <strong>Contenido</strong>
     <ul>
-      <li><a href="#requisitos">Requisitos e instalación</a></li>
+      <li><a href="#app">App web: guitarra → instrumentos (app/)</a></li>
+      <li><a href="#app-tools">Herramientas de calibración (grabar y analizar)</a></li>
+      <li><a href="#requisitos">Requisitos de los scripts de prueba</a></li>
       <li><a href="#conexion">Conexión de la guitarra</a></li>
       <li><a href="#pantalla">Mostrar la interfaz gráfica</a></li>
       <li><a href="#test-pitch">test-pitch.py: diagnóstico por consola</a></li>
@@ -135,7 +137,98 @@
   </nav>
 
   <!-- ─────────────────────────────────────────── -->
-  <h2 id="requisitos">Requisitos e instalación</h2>
+  <h2 id="app">App web <span class="badge">app/</span></h2>
+  <p>Convierte las notas de la guitarra en cualquier instrumento General MIDI, en tiempo real. Python detecta las notas y las envía por MIDI a FluidSynth, que suena por la salida del Pisound. El navegador (móvil o PC) solo controla: el audio no pasa por la red.</p>
+
+  <h3>Instalación (una vez, en la Pi)</h3>
+<pre><code>pip3 install -r app/requirements.txt     # fastapi, uvicorn, websockets
+# jack-client, numpy y fluidsynth ya están instalados en Patchbox OS</code></pre>
+
+  <h3>Ejecución</h3>
+<pre><code>python3 app/run.py</code></pre>
+  <p>Al arrancar escribe la dirección, por ejemplo <code>http://192.168.1.54:8080</code>. Ábrela desde el móvil o el PC (misma red). Cargar la SoundFont tarda unos segundos. <kbd>Ctrl</kbd>+<kbd>C</kbd> cierra todo y deja las conexiones de JACK como estaban.</p>
+  <div class="note warn">No ejecutes a la vez la app y <code>note-detection.py</code> / <code>chord-detection.py</code> si no hace falta: los tres leen la guitarra y repartirse la CPU de la Pi aumenta la latencia.</div>
+
+  <h3>Opciones de <code>run.py</code></h3>
+  <table>
+    <tr><th>Opción</th><th>Por defecto</th><th>Descripción</th></tr>
+    <tr><td><code>--port</code></td><td><code>system:capture_1</code></td><td>Puerto de captura JACK de la guitarra.</td></tr>
+    <tr><td><code>--http-port</code></td><td><code>8080</code></td><td>Puerto de la interfaz web.</td></tr>
+    <tr><td><code>--host</code></td><td><code>0.0.0.0</code></td><td>Dirección en la que escucha. Usa <code>127.0.0.1</code> para permitir solo acceso local.</td></tr>
+    <tr><td><code>--soundfont</code></td><td><code>/usr/share/sounds/sf2/FluidR3_GM.sf2</code></td><td>SoundFont General MIDI. También hay <code>TimGM6mb.sf2</code> (más ligera).</td></tr>
+    <tr><td><code>--gain</code></td><td><code>0.7</code></td><td>Ganancia maestra de FluidSynth. Bájala si el synth distorsiona.</td></tr>
+    <tr><td><code>--data-dir</code></td><td><code>app/data</code></td><td>Dónde se guardan <code>settings.json</code> y <code>presets.json</code>.</td></tr>
+    <tr><td><code>--verbose</code></td><td>desactivado</td><td>Muestra más mensajes, incluidos los de FluidSynth.</td></tr>
+  </table>
+
+  <h3>Controles de la web</h3>
+  <table>
+    <tr><th>Control</th><th>Qué hace</th></tr>
+    <tr><td>Modo: Notas / Acordes</td><td><strong>Notas</strong>: una nota a la vez (YIN), más rápido y fiable. <strong>Acordes</strong>: varias notas a la vez (análisis espectral), con unos 150–300 ms más de retraso.</td></tr>
+    <tr><td>Salida: Synth / Guitarra / Ambos</td><td>Qué llega a las salidas del Pisound. Son conexiones de JACK, sin retraso añadido.</td></tr>
+    <tr><td>Instrumento</td><td>Los 128 instrumentos GM por familias, con buscador (<em>sax</em>, <em>violín</em>, <em>pad</em>…).</td></tr>
+    <tr><td>Sonido</td><td>Transposición (semitonos y octavas), volumen, velocity, reverb, tamaño de sala, chorus, seguimiento de bends y su rango.</td></tr>
+    <tr><td>Presets</td><td>Guarda y carga combinaciones de instrumento, modo, transposición, efectos y bends. Vienen 8 de ejemplo.</td></tr>
+    <tr><td>Detección</td><td>Puerta de ruido, estabilidad, detección de púa, confianza, sensibilidad de acordes, ventana de acordes y afinación de referencia.</td></tr>
+    <tr><td>Pánico</td><td>Apaga todas las notas si alguna se queda colgada.</td></tr>
+  </table>
+
+  <h3>MODEP</h3>
+  <p>La app detecta si MODEP está activo. Si lo está, «Guitarra» es la salida de tu pedalboard (con sus efectos). Si no, la app conecta la guitarra limpia a las dos salidas. El estado aparece arriba en la web («MODEP activo» o «Guitarra limpia»).</p>
+
+  <h3>Ajustar la detección</h3>
+  <p>Mira el medidor de entrada: la línea amarilla es la puerta de ruido. En silencio la barra debe quedar por debajo y al tocar por encima.</p>
+  <table>
+    <tr><th>Síntoma</th><th>Ajuste (pestaña Detección)</th></tr>
+    <tr><td>Suenan notas con la guitarra en silencio</td><td>Sube la <strong>puerta de ruido</strong>.</td></tr>
+    <tr><td>No suena nada o se pierden notas suaves</td><td>Baja la puerta de ruido; revisa la ganancia del Pisound.</td></tr>
+    <tr><td>Notas equivocadas o saltos de octava</td><td>Sube la <strong>confianza mínima</strong> y/o la <strong>estabilidad</strong>.</td></tr>
+    <tr><td>Se nota demasiado retraso al empezar la nota</td><td>Baja la estabilidad (mínimo 2).</td></tr>
+    <tr><td>Una nota repetida no vuelve a sonar</td><td>Baja <strong>detección de púa</strong>.</td></tr>
+    <tr><td>Una nota se redispara sola mientras suena</td><td>Sube <strong>detección de púa</strong>.</td></tr>
+    <tr><td>Acordes con notas de más</td><td>Sube la <strong>sensibilidad de acordes</strong>.</td></tr>
+    <tr><td>Acordes con notas que faltan</td><td>Baja la sensibilidad o usa la ventana <strong>Precisa</strong>.</td></tr>
+  </table>
+
+  <div class="note warn">
+    <strong>Limitaciones</strong>
+    <ul>
+      <li>Los ajustes por defecto se han probado con guitarra sintetizada, no con tu guitarra real. Calibra con las herramientas de abajo.</li>
+      <li>Los bends solo se siguen en modo Notas; en modo Acordes la afinación es fija.</li>
+      <li>La velocidad (velocity) es fija: la dinámica de la púa no se transmite al synth.</li>
+      <li>Los ajustes se guardan solos en <code>app/data/</code> (que no se sube a git).</li>
+    </ul>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="app-tools">Herramientas de calibración</h2>
+  <p>Permiten ajustar el detector con tu guitarra real sin tener que tocar cada vez que cambias un valor.</p>
+
+  <h3>tools/record.py: grabar la guitarra</h3>
+<pre><code>python3 app/tools/record.py notas.wav --seconds 20
+python3 app/tools/record.py acordes.wav --seconds 30 --port system:capture_1</code></pre>
+  <p>Graba la entrada de JACK a un WAV mono. Puede usarse con la app en marcha. Muestra el nivel de pico mientras graba. Opciones: <code>--seconds</code> (por defecto 20) y <code>--port</code>.</p>
+
+  <h3>tools/analyze.py: probar el detector con un WAV</h3>
+<pre><code>python3 app/tools/analyze.py notas.wav
+python3 app/tools/analyze.py acordes.wav --mode poly
+python3 app/tools/analyze.py notas.wav --stability 4 --gate-db -55 --bend</code></pre>
+  <p>Pasa el WAV por el mismo detector que la app y lista cada nota (<code>on</code>/<code>off</code>) con su instante. Usa los ajustes guardados por la app salvo los que indiques:</p>
+  <table>
+    <tr><th>Opción</th><th>Descripción</th></tr>
+    <tr><td><code>--mode</code></td><td><code>mono</code> o <code>poly</code>.</td></tr>
+    <tr><td><code>--gate-db</code></td><td>Puerta de ruido en dBFS.</td></tr>
+    <tr><td><code>--onset-db</code></td><td>Subida de nivel que cuenta como ataque.</td></tr>
+    <tr><td><code>--stability</code></td><td>Lecturas coincidentes antes de aceptar una nota.</td></tr>
+    <tr><td><code>--confidence</code></td><td>Confianza mínima (modo mono).</td></tr>
+    <tr><td><code>--salience</code></td><td>Fuerza mínima de cada nota (modo poly).</td></tr>
+    <tr><td><code>--poly-window</code></td><td><code>fast</code> o <code>precise</code>.</td></tr>
+    <tr><td><code>--bend</code></td><td>Activa el seguimiento de bends.</td></tr>
+  </table>
+  <p><strong>Flujo recomendado:</strong> graba tocando una escala lenta, una melodía rápida y varios acordes; analiza con distintos valores hasta que la lista de notas coincida con lo que tocaste; cuando lo tengas, introduce esos valores en la pestaña Detección de la web.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="requisitos">Requisitos de los scripts de prueba</h2>
   <p>Los scripts se ejecutan en la Raspberry Pi y necesitan que el servidor de audio <strong>JACK</strong> esté en marcha. En Patchbox OS arranca automáticamente con el Pisound.</p>
 
   <table>
@@ -318,7 +411,7 @@ python3 scripts/chord-detection.py --debug</code></pre>
     </tr>
     <tr>
       <td>Error <code>ModuleNotFoundError</code></td>
-      <td>Falta alguna dependencia. Consulta <a href="#requisitos">Requisitos e instalación</a>.</td>
+      <td>Falta alguna dependencia. Para la app: <code>pip3 install -r app/requirements.txt</code>. Para los scripts de prueba, consulta <a href="#requisitos">Requisitos</a>.</td>
     </tr>
   </table>
 </main>

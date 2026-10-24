@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# Ajustes y presets locales de la app
+app/data/
