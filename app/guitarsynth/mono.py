@@ -25,9 +25,9 @@ from collections import deque
 
 import numpy as np
 
-from .dsp import FMAX, FMIN, HOP, OnsetDetector, Yin, db, freq_to_midi, note_name, rms
+from .dsp import FMAX, FMIN, OnsetDetector, Yin, db, freq_to_midi, hop_size, note_name, rms
 
-# Tiempos expresados en pasos de HOP (5.3 ms a 48 kHz)
+# Tiempos expresados en pasos del análisis (~5.3 ms, 128 muestras a 24 kHz)
 SKIP_AFTER_ONSET = 4        # esperar a que la ventana de análisis vea el ataque
 ONSET_WINDOW = 30           # tiempo máximo para decidir tras un ataque (~160 ms)
 RELEASE_HOPS = 4            # pasos bajo la puerta para soltar la nota
@@ -44,10 +44,13 @@ OCTAVE_ERRORS = {12, -12, 24, -24, 19, -19}
 class MonoTracker:
     def __init__(self, samplerate, params):
         self.samplerate = samplerate
+        self.hop = hop_size(samplerate)
         self.yin = Yin(samplerate)
-        self.buffer = np.zeros(max(self.yin.size, 1024), dtype=np.float32)
+        self.level_len = int(samplerate * 0.0213)     # ventana del nivel (~21 ms)
+        self.onset_len = int(samplerate * 0.0107)     # ventana del ataque (~11 ms)
+        self.buffer = np.zeros(max(self.yin.size, self.level_len), dtype=np.float32)
         self._pending = np.empty(0, dtype=np.float32)
-        self.onsets = OnsetDetector(HOP / samplerate)
+        self.onsets = OnsetDetector(self.hop / samplerate)
         self.set_params(params)
         self.reset()
 
@@ -86,22 +89,26 @@ class MonoTracker:
         if len(self._pending):
             samples = np.concatenate((self._pending, samples))
         offset = 0
-        while len(samples) - offset >= HOP:
-            self.buffer[:-HOP] = self.buffer[HOP:]
-            self.buffer[-HOP:] = samples[offset:offset + HOP]
-            offset += HOP
+        hop = self.hop
+        while len(samples) - offset >= hop:
+            self.buffer[:-hop] = self.buffer[hop:]
+            self.buffer[-hop:] = samples[offset:offset + hop]
+            offset += hop
             self._step(events)
         self._pending = samples[offset:].copy()
         return events
 
     def _step(self, events):
         x = self.buffer
-        level_db = db(rms(x[-1024:]))
-        onset = self.onsets.update(db(rms(x[-512:])), self.onset_db, self.gate_db)
+        level_db = db(rms(x[-self.level_len:]))
+        onset = self.onsets.update(db(rms(x[-self.onset_len:])), self.onset_db, self.gate_db)
 
-        freq, confidence = self.yin(x)
         active = self.note is not None
         gate = self.gate_db - (GATE_HYSTERESIS_DB if active else 0.0)
+        if level_db > gate:
+            freq, confidence = self.yin(x)
+        else:
+            freq, confidence = 0.0, 0.0     # en silencio no se gasta CPU en YIN
         voiced = (level_db > gate and confidence >= self.min_confidence
                   and FMIN <= freq <= FMAX)
         m = freq_to_midi(freq, self.a4) if voiced else None

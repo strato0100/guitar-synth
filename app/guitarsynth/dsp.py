@@ -13,8 +13,15 @@ NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F",
 FMIN = 70.0
 FMAX = 1400.0
 
-# Tamaño de paso común a ambos detectores (a la frecuencia interna).
-HOP = 256
+# El análisis trabaja a ~24 kHz: una guitarra no necesita más (fundamentales
+# hasta 1.4 kHz) y cada FFT cuesta una cuarta parte que a 96 kHz.
+ANALYSIS_RATE = 24000
+HOP_SECONDS = 0.00533
+
+
+def hop_size(samplerate):
+    """Paso del análisis (~5.3 ms): 128 muestras a 24 kHz."""
+    return max(64, round(samplerate * HOP_SECONDS / 64) * 64)
 
 
 def freq_to_midi(freq, a4=440.0):
@@ -39,24 +46,29 @@ def rms(x):
 
 class Decimator:
     """
-    Reduce 96 kHz (o 88.2 kHz) a la mitad promediando pares de muestras.
-    A esas frecuencias el promedio basta como filtro antialiasing para una
-    guitarra, y el análisis cuesta la mitad de CPU.
+    Reduce la frecuencia de muestreo hasta ~24 kHz promediando pares de
+    muestras en varias etapas (96 kHz -> 48 kHz -> 24 kHz). Dos filtros de
+    caja en cascada atenúan lo bastante lo que queda por encima de 12 kHz
+    para el análisis de notas.
     """
 
     def __init__(self, samplerate):
-        self.factor = 2 if samplerate >= 88200 else 1
-        self.samplerate = samplerate / self.factor
-        self._leftover = np.empty(0, dtype=np.float32)
+        self.stages = 0
+        rate = float(samplerate)
+        while rate / 2 >= ANALYSIS_RATE * 0.8:
+            rate /= 2
+            self.stages += 1
+        self.samplerate = rate
+        self._leftover = [np.empty(0, dtype=np.float32) for _ in range(self.stages)]
 
     def process(self, x):
-        if self.factor == 1:
-            return x
-        if len(self._leftover):
-            x = np.concatenate((self._leftover, x))
-        usable = len(x) - len(x) % self.factor
-        self._leftover = x[usable:].copy()
-        return x[:usable].reshape(-1, self.factor).mean(axis=1).astype(np.float32)
+        for stage in range(self.stages):
+            if len(self._leftover[stage]):
+                x = np.concatenate((self._leftover[stage], x))
+            usable = len(x) - len(x) % 2
+            self._leftover[stage] = x[usable:].copy()
+            x = (x[:usable:2] + x[1:usable:2]) * 0.5
+        return x.astype(np.float32, copy=False)
 
 
 class Yin:
@@ -69,8 +81,8 @@ class Yin:
         self.samplerate = samplerate
         self.tau_min = max(2, int(samplerate / fmax))
         self.tau_max = int(samplerate / fmin) + 2
-        # ~42 ms: unas 3.5 periodos del Mi grave
-        self.window = window or next_pow2(samplerate * 0.04)
+        # ~32 ms: más de 2.5 periodos del Mi grave (82 Hz) y una FFT de la mitad de tamaño
+        self.window = window or max(256, int(samplerate * 0.032))
         self.size = self.window + self.tau_max     # muestras necesarias
         self.nfft = next_pow2(self.size + self.window)
         self.threshold = threshold

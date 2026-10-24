@@ -24,7 +24,7 @@ from collections import deque
 import numpy as np
 
 from .chords import identify_chord
-from .dsp import (FMAX, FMIN, HOP, OnsetDetector, db, freq_to_midi, next_pow2,
+from .dsp import (FMAX, FMIN, OnsetDetector, db, freq_to_midi, hop_size, next_pow2,
                   note_name, rms)
 
 ANALYSIS_EVERY = 4          # un análisis cada 4 pasos (~21 ms a 48 kHz)
@@ -48,13 +48,16 @@ WINDOWS = {"fast": 0.17, "precise": 0.34}
 class PolyTracker:
     def __init__(self, samplerate, params):
         self.samplerate = samplerate
+        self.hop = hop_size(samplerate)
+        self.level_len = int(samplerate * 0.0213)
+        self.onset_len = int(samplerate * 0.0107)
         self.fft_size = next_pow2(samplerate * WINDOWS["precise"])
         self.buffer = np.zeros(self.fft_size, dtype=np.float32)
         self.freqs_axis = np.fft.rfftfreq(self.fft_size, 1.0 / samplerate)
         self.bin_hz = samplerate / self.fft_size
         self._windows = {}
         self._pending = np.empty(0, dtype=np.float32)
-        self.onsets = OnsetDetector(HOP / samplerate)
+        self.onsets = OnsetDetector(self.hop / samplerate)
         self.set_params(params)
         self.reset()
 
@@ -65,7 +68,7 @@ class PolyTracker:
         self.salience = float(params["salience"])
         self.window_name = params["poly_window"]
         self.a4 = float(params["a4"])
-        hop_seconds = HOP / self.samplerate
+        hop_seconds = self.hop / self.samplerate
         self.hold_hops = round(float(params["poly_hold"]) / 1000 / hop_seconds)
 
     def reset(self):
@@ -91,18 +94,19 @@ class PolyTracker:
         if len(self._pending):
             samples = np.concatenate((self._pending, samples))
         offset = 0
-        while len(samples) - offset >= HOP:
-            self.buffer[:-HOP] = self.buffer[HOP:]
-            self.buffer[-HOP:] = samples[offset:offset + HOP]
-            offset += HOP
+        hop = self.hop
+        while len(samples) - offset >= hop:
+            self.buffer[:-hop] = self.buffer[hop:]
+            self.buffer[-hop:] = samples[offset:offset + hop]
+            offset += hop
             self._step(events)
         self._pending = samples[offset:].copy()
         return events
 
     def _step(self, events):
         x = self.buffer
-        level_db = db(rms(x[-1024:]))
-        if self.onsets.update(db(rms(x[-512:])), self.onset_db, self.gate_db):
+        level_db = db(rms(x[-self.level_len:]))
+        if self.onsets.update(db(rms(x[-self.onset_len:])), self.onset_db, self.gate_db):
             # Ataque nuevo: olvidar el historial para cambiar rápido de acorde
             self.history = {n: deque(maxlen=HISTORY) for n in self.active}
             self.skip = SKIP_AFTER_ONSET

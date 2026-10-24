@@ -166,7 +166,7 @@ select {
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
   padding: .6rem .7rem; color: var(--fg); font: inherit;
 }
-.segmented button:disabled { opacity: .4; cursor: not-allowed; }
+.segmented button.unavailable { opacity: .5; }
 .gone { display: none !important; }
 .loading {
   position: fixed; left: 0; right: 0; top: 52px; z-index: 15; text-align: center;

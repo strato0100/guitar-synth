@@ -182,6 +182,12 @@
   </table>
   <p><strong>Sonidos incluidos de ejemplo:</strong> en <code>app/sounds/</code> hay GeneralUser GS (SoundFont), un piano de cola, una flauta y un chelo en SFZ. Sus fuentes y licencias están en <code>app/sounds/README.md</code>. Para llevarlos a la Pi: <code>rsync -av app/sounds/ patch@&lt;ip-de-la-pi&gt;:~/guitar-synth/app/sounds/</code>.</p>
   <p><strong>Dónde poner los archivos:</strong> copia los <code>.sf2</code> y las carpetas de <code>.sfz</code> en <code>app/sounds/</code> (se crea al arrancar) o en cualquier carpeta que pases con <code>--sounds-dir</code>. Pulsa <strong>↻</strong> junto al banco para que la web los detecte sin reiniciar. Los archivos de <code>app/sounds/</code> no se suben a git.</p>
+  <h3>Instalar sfizz en la Pi</h3>
+  <p>sfizz no está en los repositorios de Raspbian 11 (<code>apt-cache policy sfizz</code> no lo encuentra), así que hay que compilarlo. El script lo hace todo: instala las herramientas, descarga la versión 1.2.3 (comprobando su hash SHA-256), compila solo <code>sfizz_jack</code> e instala en <code>/usr/local/bin</code>. Tarda entre 15 y 30 minutos y solo se hace una vez.</p>
+<pre><code>bash app/tools/install-sfizz.sh
+JOBS=3 bash app/tools/install-sfizz.sh    # más rápido, usa más RAM</code></pre>
+  <p>Después reinicia la app: el botón sfizz queda activo. Si no, revisa con <code>which sfizz_jack</code>.</p>
+
   <div class="note warn">
     <ul>
       <li>La Pi 4 tiene 4 GB de RAM. Un banco o un instrumento SFZ de varios GB puede tardar mucho en cargar o no caber. Prueba con uno cada vez.</li>

@@ -157,7 +157,8 @@ function renderStatus() {
   parts.push(s.modep ? "MODEP activo" : "Guitarra limpia");
   if (s.samplerate) parts.push(`${s.samplerate / 1000} kHz`);
   if (s.cpu_load != null) parts.push(`CPU ${Math.round(s.cpu_load)}%`);
-  if (s.xruns) parts.push(`⚠ ${s.xruns} cortes de audio`);
+  if (s.xruns_recent) parts.push(`⚠ ${s.xruns_recent} cortes en 10 s`);
+  else if (s.xruns) parts.push(`${s.xruns} cortes en total`);
   $("#status-text").textContent = parts.join(" · ");
   $("#status-text").title = `Buffer JACK: ${s.buffer || "?"} muestras · cortes (xruns): ${s.xruns || 0}` +
     (s.xruns ? ` · el peor, ${s.worst_xrun_ms} ms` : "");
@@ -203,11 +204,15 @@ function renderEngines() {
   box.innerHTML = "";
   for (const e of state.library.engines) {
     const b = document.createElement("button");
-    b.textContent = e.label;
-    b.disabled = !e.available;
+    b.textContent = e.available ? e.label : `${e.label} · no instalado`;
     b.title = e.available ? `${e.sounds.length} archivo(s) .${e.kind}` : e.hint;
     b.classList.toggle("active", e.id === state.settings.engine);
+    b.classList.toggle("unavailable", !e.available);
     b.onclick = () => {
+      if (!e.available) {
+        toast(e.hint, true);
+        return;
+      }
       setValues({ engine: e.id });
       renderEngines();
     };
@@ -223,7 +228,9 @@ function renderEngineUI() {
   // Aviso cuando falta el programa o no hay archivos
   const hint = $("#engine-hint");
   const folders = state.library.dirs.join(", ");
+  const missing = state.library.engines.filter((e) => !e.available);
   if (!engine.available) hint.textContent = engine.hint;
+  else if (missing.length) hint.textContent = missing.map((e) => `${e.label}: ${e.hint}`).join(" · ");
   else if (!engine.sounds.length) hint.textContent = `No hay archivos .${engine.kind}. Copia alguno a: ${folders}`;
   else hint.textContent = engine.gm
     ? "Los 128 instrumentos General MIDI del banco elegido."

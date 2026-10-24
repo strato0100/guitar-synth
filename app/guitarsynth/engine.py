@@ -49,6 +49,7 @@ class Engine:
         self.effects = effects
         self.xruns = 0              # ciclos de audio perdidos por JACK desde el arranque
         self.worst_xrun_ms = 0.0
+        self._xrun_times = deque(maxlen=5000)
         self.library = scan_library(self.sound_dirs)
 
         self.backend = None
@@ -155,6 +156,7 @@ class Engine:
 
     def _xrun(self, delay_us):
         self.xruns += 1
+        self._xrun_times.append(time.monotonic())
         self.worst_xrun_ms = max(self.worst_xrun_ms, delay_us / 1000)
 
     def _shutdown(self, status, reason):
@@ -437,6 +439,7 @@ class Engine:
             "loading": self.loading,
             "error": self.error,
             "xruns": self.xruns,
+            "xruns_recent": sum(1 for t in tuple(self._xrun_times) if time.monotonic() - t < 10),
             "worst_xrun_ms": round(self.worst_xrun_ms, 1),
             "cpu_load": self._cpu_load(),
             "buffer": getattr(self, "blocksize", None),
